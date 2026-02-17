@@ -1,0 +1,173 @@
+/* ============================================
+   App Layout — 대시보드 레이아웃
+   ============================================ */
+
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* --- Header --- */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-xl);
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+}
+
+.app-header__title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* --- Theme Toggle Button --- */
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 1.125rem;
+  transition: all var(--transition-fast);
+}
+
+.theme-toggle:hover {
+  background: var(--accent);
+  color: #FFFFFF;
+  border-color: var(--accent);
+}
+
+/* --- Main Content --- */
+
+.app-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto 1fr;
+  gap: var(--space-lg);
+  padding: var(--space-lg) var(--space-xl);
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* --- Dashboard Sections --- */
+
+.dashboard-section {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  transition: box-shadow var(--transition-normal);
+}
+
+.dashboard-section:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.dashboard-section--full {
+  grid-column: 1 / -1;
+}
+
+.dashboard-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+}
+
+.dashboard-section__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+/* --- Status Badges --- */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 2px var(--space-sm);
+  border-radius: var(--radius-full);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.status-badge--active {
+  background-color: var(--accent);
+  color: #FFFFFF;
+}
+
+.status-badge--blocked {
+  background-color: var(--accent-strong);
+  color: #FFFFFF;
+}
+
+.status-badge--done {
+  background-color: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+/* --- Empty State --- */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2xl);
+  color: var(--text-secondary);
+  text-align: center;
+  gap: var(--space-sm);
+}
+
+.empty-state__icon {
+  font-size: 2rem;
+  opacity: 0.5;
+}
+
+.empty-state__text {
+  font-size: 0.875rem;
+}
+
+/* --- Responsive --- */
+
+@media (max-width: 768px) {
+  .app-main {
+    grid-template-columns: 1fr;
+    padding: var(--space-md);
+  }
+
+  .app-header {
+    padding: var(--space-sm) var(--space-md);
+  }
+}

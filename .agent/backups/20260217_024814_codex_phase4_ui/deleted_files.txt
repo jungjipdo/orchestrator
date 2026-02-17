@@ -1,0 +1,5 @@
+src/components/dashboard/AssistantRulesPanel.tsx
+src/components/dashboard/BottomDock.tsx
+src/components/dashboard/CommandToolbar.tsx
+src/components/dashboard/TimelinePanel.tsx
+src/components/dashboard/WorkspacePanel.tsx

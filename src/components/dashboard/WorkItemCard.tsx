@@ -30,7 +30,7 @@ export function WorkItemCard({ item, onFocus, disableFocus = false }: WorkItemCa
 
             <p className="work-item-card__next-action">
                 <span>next_action</span>
-                <strong>{item.next_action ?? '미설정'}</strong>
+                <strong className={item.next_action ? '' : 'is-unset'}>{item.next_action ?? '미설정'}</strong>
             </p>
 
             <div className="work-item-card__meta">

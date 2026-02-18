@@ -21,8 +21,8 @@ function computeDday(iso: string): number {
 }
 
 export function CalendarStrip({ events, deadlines }: CalendarStripProps) {
-    const visibleEvents = events.slice(0, 4)
-    const visibleDeadlines = deadlines.slice(0, 4)
+    const visibleEvents = events.slice(0, 3)
+    const visibleDeadlines = deadlines.slice(0, 3)
 
     return (
         <section className="calendar-strip">

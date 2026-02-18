@@ -3,6 +3,8 @@
 interface ImportMetaEnv {
     readonly VITE_SUPABASE_URL: string
     readonly VITE_SUPABASE_ANON_KEY: string
+    readonly VITE_GITHUB_APP_SLUG?: string
+    readonly VITE_GITHUB_CLIENT_ID?: string
 }
 
 interface ImportMeta {

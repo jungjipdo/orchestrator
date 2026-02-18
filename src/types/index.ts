@@ -175,6 +175,67 @@ export type EventStage =
     | 'applied'
     | 'logged'
 
+// === Plan 시스템 ===
+
+export type PlanType = 'task' | 'event' | 'project'
+
+export type PlanStatus = WorkItemStatus  // 동일 상태 모델 재사용
+
+export type PlanPriority = 'low' | 'medium' | 'high' | 'critical'
+
+export type ReminderOption = '30min' | '1h' | '1day' | '1week'
+
+// 타입별 metadata 구조
+export interface TaskMetadata {
+    goals?: string
+}
+
+export interface EventMetadata {
+    start_at: string           // ISO 8601
+    end_at?: string            // ISO 8601
+    location?: string
+    reminders: ReminderOption[]
+    fixed_event_id?: string    // fixed_events 테이블 연동 ID
+}
+
+export interface ProjectMetadata {
+    git_repo?: string
+    goals?: string
+    milestones?: string[]
+}
+
+export type PlanMetadata = TaskMetadata | EventMetadata | ProjectMetadata
+
+export interface Plan {
+    id: string
+    title: string
+    plan_type: PlanType
+    status: PlanStatus
+    priority: PlanPriority | null
+    description: string | null
+    due_at: string | null      // ISO 8601
+    metadata: PlanMetadata
+    created_at: string
+    updated_at: string
+}
+
+// Plan 폼 입력 (모달에서 사용)
+export interface PlanFormData {
+    title: string
+    plan_type: PlanType
+    priority: PlanPriority
+    description: string
+    due_at: string
+    // Event 전용
+    start_at: string
+    start_time: string
+    end_time: string
+    location: string
+    reminders: ReminderOption[]
+    // Project 전용
+    git_repo: string
+}
+
 // === AI 제안 출력 규격 (6.4절) ===
 
 export interface AISuggestionOption {

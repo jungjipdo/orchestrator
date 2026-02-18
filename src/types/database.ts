@@ -9,6 +9,9 @@ import type {
     SyncMode,
     EnergyLevel,
     Importance,
+    PlanType,
+    PlanStatus,
+    PlanPriority,
 } from './index'
 
 // === Supabase Database 타입 ===
@@ -213,6 +216,45 @@ export interface Database {
                 }
                 Relationships: []
             }
+            plans: {
+                Row: {
+                    id: string
+                    title: string
+                    plan_type: PlanType
+                    status: PlanStatus
+                    priority: PlanPriority | null
+                    description: string | null
+                    due_at: string | null
+                    metadata: Record<string, unknown>
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    title: string
+                    plan_type: PlanType
+                    status?: PlanStatus
+                    priority?: PlanPriority | null
+                    description?: string | null
+                    due_at?: string | null
+                    metadata?: Record<string, unknown>
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    title?: string
+                    plan_type?: PlanType
+                    status?: PlanStatus
+                    priority?: PlanPriority | null
+                    description?: string | null
+                    due_at?: string | null
+                    metadata?: Record<string, unknown>
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: []
+            }
         }
         Views: Record<string, never>
         Functions: Record<string, never>
@@ -244,3 +286,7 @@ export type ExternalAppInsert = Database['public']['Tables']['external_apps']['I
 
 export type EventLogRow = Database['public']['Tables']['event_logs']['Row']
 export type EventLogInsert = Database['public']['Tables']['event_logs']['Insert']
+
+export type PlanRow = Database['public']['Tables']['plans']['Row']
+export type PlanInsert = Database['public']['Tables']['plans']['Insert']
+export type PlanUpdate = Database['public']['Tables']['plans']['Update']

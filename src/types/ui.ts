@@ -3,10 +3,12 @@
 // ============================================
 
 import type { CommandType, ErrorCode } from './index'
+import type { SessionLogRow } from './database'
 
 export interface OutletContextType {
     refreshTrigger: number
     refresh: () => void
+    activeSession: SessionLogRow | null
 }
 
 export interface CommandResultView {

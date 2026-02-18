@@ -80,13 +80,13 @@ export function SettingsView() {
                             {/* 연결 상태 */}
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
-                                        <Github className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                    <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
+                                        <Github className="w-5 h-5 text-foreground" />
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <span className="font-medium">@{username}</span>
-                                            <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800">
+                                            <Badge variant="outline" className="text-xs bg-muted text-foreground border-border">
                                                 Connected
                                             </Badge>
                                         </div>
@@ -140,13 +140,22 @@ export function SettingsView() {
                                     <div className="border rounded-lg divide-y" style={{ minHeight: `${REPOS_PER_PAGE * 45}px` }}>
                                         {pagedRepos.map((repo) => (
                                             <div key={repo.id} className="flex items-center justify-between px-3 py-2.5 text-sm">
-                                                <span className="font-mono text-xs truncate mr-3">{repo.full_name}</span>
+                                                <span className="text-sm truncate mr-3">
+                                                    {repo.full_name.includes('/') ? (
+                                                        <>
+                                                            <span className="text-muted-foreground">{repo.full_name.split('/')[0]}/</span>
+                                                            <span className="font-medium bg-muted px-1.5 py-0.5 rounded text-foreground font-mono text-xs">{repo.full_name.split('/').slice(1).join('/')}</span>
+                                                        </>
+                                                    ) : (
+                                                        <span className="font-medium">{repo.full_name}</span>
+                                                    )}
+                                                </span>
                                                 <div className="flex items-center gap-1.5 shrink-0">
                                                     {repo.language && (
                                                         <span className="text-[10px] px-1.5 py-0.5 bg-muted rounded">{repo.language}</span>
                                                     )}
                                                     {repo.private && (
-                                                        <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 rounded text-yellow-700 dark:text-yellow-400">private</span>
+                                                        <span className="text-[10px] px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 rounded text-red-600 dark:text-red-400">private</span>
                                                     )}
                                                 </div>
                                             </div>

@@ -5,7 +5,7 @@
 
 :root {
   --font-size: 14px;
-  --background: #ffffff;
+  --background: #f8f9fc;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
   --card-foreground: oklch(0.145 0 0);
@@ -42,6 +42,15 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* ─── Glass Effect ─── */
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-hover: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.45);
+  --glass-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04);
+  --glass-shadow-hover: 0 8px 32px -2px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
+  --glass-blur: 16px;
+  --body-gradient: linear-gradient(135deg, #eef1f8 0%, #f0edf6 40%, #e8edf5 100%);
 }
 
 .dark {
@@ -72,6 +81,15 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.269 0 0);
   --sidebar-ring: oklch(0.439 0 0);
+
+  /* ─── Glass Effect (dark) ─── */
+  --glass-bg: rgba(30, 30, 32, 0.55);
+  --glass-bg-hover: rgba(40, 40, 44, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.2);
+  --glass-shadow-hover: 0 8px 32px -2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --glass-blur: 16px;
+  --body-gradient: linear-gradient(135deg, #0f0f14 0%, #151520 40%, #0f1118 100%);
 }
 
 @theme inline {
@@ -121,7 +139,10 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background: var(--body-gradient);
+    background-attachment: fixed;
+    min-height: 100vh;
   }
 }
 
@@ -174,4 +195,15 @@
 
 html {
   font-size: var(--font-size);
+}
+
+/* ─── Glass Hover Effects ─── */
+[data-slot="card"] {
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+[data-slot="card"]:hover {
+  background: var(--glass-bg-hover) !important;
+  box-shadow: var(--glass-shadow-hover) !important;
+  transform: translateY(-1px);
 }

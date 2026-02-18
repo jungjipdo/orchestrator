@@ -5,6 +5,7 @@
 
 import { useCallback, useState } from 'react'
 import { useSessionLog } from '../../hooks/useSessionLog'
+import { useTheme } from '../../hooks/useTheme'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import {
@@ -17,6 +18,8 @@ import {
     Bell,
     Menu,
     X,
+    Moon,
+    Sun,
 } from 'lucide-react'
 import { Dashboard } from '../dashboard/Dashboard'
 import { ReleasePlanView } from '../views/ReleasePlanView'
@@ -37,6 +40,7 @@ interface NavItem {
 
 export function AppLayout() {
     const { activeSession, refresh: refreshSession } = useSessionLog()
+    const { toggleTheme, isDark } = useTheme()
     const [refreshTrigger, setRefreshTrigger] = useState(0)
     const [activeTab, setActiveTab] = useState<ViewType>('dashboard')
     const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -90,9 +94,18 @@ export function AppLayout() {
     }
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen">
             {/* Header */}
-            <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b">
+            <header
+                className="sticky top-0 z-50 border-b"
+                style={{
+                    background: 'var(--glass-bg)',
+                    borderColor: 'var(--glass-border)',
+                    backdropFilter: `blur(var(--glass-blur))`,
+                    WebkitBackdropFilter: `blur(var(--glass-blur))`,
+                    boxShadow: 'var(--glass-shadow)',
+                }}
+            >
                 <div className="flex h-16 items-center justify-between px-6">
                     <div className="flex items-center gap-4">
                         <Button
@@ -123,6 +136,9 @@ export function AppLayout() {
                             </div>
                         )}
 
+                        <Button variant="ghost" size="sm" onClick={toggleTheme} title={isDark ? 'Light mode' : 'Dark mode'}>
+                            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                        </Button>
                         <Button variant="ghost" size="sm" className="relative">
                             <Bell className="w-4 h-4" />
                             <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs">
@@ -138,10 +154,18 @@ export function AppLayout() {
 
             <div className="flex">
                 {/* Sidebar */}
-                <aside className={`
-          fixed lg:sticky top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-background border-r transition-transform duration-200 z-40
+                <aside
+                    className={`
+          fixed lg:sticky top-16 left-0 h-[calc(100vh-4rem)] w-64 border-r transition-transform duration-200 z-40
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        `}>
+        `}
+                    style={{
+                        background: 'var(--glass-bg)',
+                        borderColor: 'var(--glass-border)',
+                        backdropFilter: `blur(var(--glass-blur))`,
+                        WebkitBackdropFilter: `blur(var(--glass-blur))`,
+                    }}
+                >
                     {/* Main Nav */}
                     <nav className="p-4 space-y-2">
                         {navigationItems.map((item) => {

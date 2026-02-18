@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { PlanRow } from '../types/database'
-import type { PlanType, PlanStatus, PlanFormData, EventMetadata } from '../types/index'
+import type { PlanType, PlanStatus, PlanFormData, EventMetadata, FixedMetadata, RecurrenceRule } from '../types/index'
 import {
     getPlans,
     createPlan as createPlanApi,
@@ -107,6 +107,62 @@ export function usePlans(options?: UsePlansOptions): UsePlansReturn {
                 metadata = eventMeta as unknown as Record<string, unknown>
                 break
             }
+            case 'fixed': {
+                const startDateTime = formData.start_at && formData.start_time
+                    ? `${formData.start_at}T${formData.start_time}:00`
+                    : formData.start_at
+
+                const endDateTime = formData.start_at && formData.end_time
+                    ? `${formData.start_at}T${formData.end_time}:00`
+                    : undefined
+
+                // 반복 규칙 구성 (is_recurring일 때만)
+                let recurrence: RecurrenceRule | undefined
+                if (formData.is_recurring) {
+                    recurrence = {
+                        type: formData.recurrence_type,
+                        endType: formData.recurrence_endType,
+                    }
+                    if (formData.recurrence_type === 'weekly' && formData.recurrence_weekDays.length > 0) {
+                        recurrence.weekDays = formData.recurrence_weekDays
+                    }
+                    if (formData.recurrence_type === 'monthly') {
+                        recurrence.monthlyType = formData.recurrence_monthlyType
+                    }
+                    if (formData.recurrence_endType === 'date' && formData.recurrence_endDate) {
+                        recurrence.endDate = formData.recurrence_endDate
+                    }
+                    if (formData.recurrence_endType === 'count' && formData.recurrence_count > 0) {
+                        recurrence.count = formData.recurrence_count
+                    }
+                }
+
+                const fixedMeta: FixedMetadata = {
+                    start_at: startDateTime ? new Date(startDateTime).toISOString() : new Date().toISOString(),
+                    end_at: endDateTime ? new Date(endDateTime).toISOString() : undefined,
+                    location: formData.location || undefined,
+                    reminders: formData.reminders,
+                    recurrence,
+                }
+
+                // fixed_events에 동시 생성 (Timeline 연동)
+                if (startDateTime) {
+                    const fixedEvent = await createFixedEvent({
+                        title: formData.title,
+                        start_at: new Date(startDateTime).toISOString(),
+                        end_at: endDateTime
+                            ? new Date(endDateTime).toISOString()
+                            : new Date(new Date(startDateTime).getTime() + 60 * 60 * 1000).toISOString(),
+                        importance: formData.priority === 'critical' ? 'critical'
+                            : formData.priority === 'high' ? 'high'
+                                : 'medium',
+                    })
+                    fixedMeta.fixed_event_id = fixedEvent.id
+                }
+
+                metadata = fixedMeta as unknown as Record<string, unknown>
+                break
+            }
             case 'project': {
                 metadata = {
                     git_repo: formData.git_repo || undefined,
@@ -174,8 +230,8 @@ export function usePlans(options?: UsePlansOptions): UsePlansReturn {
         const plan = await getPlanById(id)
         const meta = plan.metadata as Record<string, unknown>
 
-        // Event 타입이고 fixed_event_id가 있으면 동시 삭제
-        if (plan.plan_type === 'event' && meta.fixed_event_id) {
+        // Event/Fixed 타입이고 fixed_event_id가 있으면 동시 삭제
+        if ((plan.plan_type === 'event' || plan.plan_type === 'fixed') && meta.fixed_event_id) {
             try {
                 await deleteFixedEvent(meta.fixed_event_id as string)
             } catch {

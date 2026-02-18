@@ -452,8 +452,15 @@ export function ReleasePlanView() {
                                             <div className={`w-3 h-3 rounded-full ${statusColor} shrink-0`} />
                                             <PlanIcon className="w-4 h-4 text-muted-foreground shrink-0" />
                                             <div className="min-w-0">
-                                                <div className="font-medium text-sm truncate">{plan.title}</div>
-                                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                <div className="font-medium text-sm truncate">
+                                                    {plan.title}
+                                                    {plan.due_at && (
+                                                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                                            Due: {new Date(plan.due_at).toLocaleDateString('ko-KR')}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-1">
                                                     <Badge variant="outline" className="text-xs capitalize">{plan.plan_type}</Badge>
                                                     <Badge variant="outline" className="text-xs capitalize">{plan.status}</Badge>
                                                     {plan.priority && (
@@ -463,11 +470,6 @@ export function ReleasePlanView() {
                                                         >
                                                             {plan.priority}
                                                         </Badge>
-                                                    )}
-                                                    {plan.due_at && (
-                                                        <span className="text-xs text-muted-foreground">
-                                                            Due: {new Date(plan.due_at).toLocaleDateString('ko-KR')}
-                                                        </span>
                                                     )}
                                                 </div>
                                             </div>
@@ -674,7 +676,14 @@ export function ReleasePlanView() {
                                             <div className="w-3 h-3 rounded-full bg-blue-500" />
                                             <PlanIcon className="w-4 h-4 text-blue-600" />
                                             <div>
-                                                <div className="font-medium">{plan.title}</div>
+                                                <div className="font-medium">
+                                                    {plan.title}
+                                                    {plan.due_at && (
+                                                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                                            Due: {new Date(plan.due_at).toLocaleDateString('ko-KR')}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <Badge variant="outline" className="text-xs capitalize">{plan.plan_type}</Badge>
                                                     <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200">Active</Badge>
@@ -682,11 +691,6 @@ export function ReleasePlanView() {
                                                         <Badge variant={plan.priority === 'critical' ? 'destructive' : 'outline'} className="text-xs">
                                                             {plan.priority}
                                                         </Badge>
-                                                    )}
-                                                    {plan.due_at && (
-                                                        <span className="text-xs text-muted-foreground">
-                                                            Due: {new Date(plan.due_at).toLocaleDateString('ko-KR')}
-                                                        </span>
                                                     )}
                                                 </div>
                                             </div>

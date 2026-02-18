@@ -8,23 +8,36 @@ import { useWorkItems } from '../../hooks/useWorkItems'
 import { useFixedEvents } from '../../hooks/useFixedEvents'
 import { useProjectDeadlines } from '../../hooks/useProjectDeadlines'
 import { usePlans } from '../../hooks/usePlans'
+import { generateOccurrences, getRecurrenceDescription } from '../../lib/utils/recurrence'
+import type { FixedMetadata } from '../../types'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import {
     Clock,
-    Calendar,
     AlertTriangle,
     CheckCircle,
     MapPin,
     Zap,
     ListTodo,
-    GitBranch,
+    Repeat,
     Trash2,
     ChevronLeft,
     ChevronRight,
 } from 'lucide-react'
 import type { ViewType } from '../common/AppLayout'
+
+// ─── 통합 타임라인 아이템 ───
+interface TimelineItem {
+    id: string
+    type: 'event' | 'deadline' | 'task' | 'plan' | 'fixed'
+    title: string
+    subtitle?: string
+    time?: string
+    sortTime: number
+    planId?: string        // plan 삭제용
+    onClick?: () => void
+}
 
 // ─── 날짜 헬퍼 ───
 function getWeekDates(baseDate: Date): Date[] {
@@ -153,37 +166,134 @@ export function TimelineView({ onNavigate }: TimelineViewProps) {
         return plans.some(p => p.due_at && isSameDay(new Date(p.due_at), date))
     }, [plans])
 
-    // 선택된 날짜의 이벤트
-    const dayEvents = useMemo(() => {
-        return fixedEvents.filter(e => {
-            const eventDate = new Date(e.start_at)
-            return isSameDay(eventDate, selectedDate)
+    // 반복 일정의 인스턴스가 해당 날짜에 있는지
+    const hasRecurringOnDate = useCallback((date: Date) => {
+        return plans.some(p => {
+            if (p.plan_type !== 'fixed') return false
+            const meta = p.metadata as unknown as FixedMetadata
+            if (!meta?.recurrence) return false
+            const startDate = new Date(meta.start_at)
+            const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0)
+            const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999)
+            const occ = generateOccurrences(meta.recurrence, startDate, { from: dayStart, to: dayEnd })
+            return occ.length > 0
         })
-    }, [fixedEvents, selectedDate])
+    }, [plans])
 
-    // 선택된 날짜의 deadline
-    const dayDeadlines = useMemo(() => {
-        return deadlines.filter(d => {
-            const dlDate = new Date(d.deadline_at)
-            return isSameDay(dlDate, selectedDate)
+    // ─── plans와 연결된 fixed_event_id 목록 (중복 방지) ───
+    const linkedEventIds = useMemo(() => {
+        const ids = new Set<string>()
+        plans.forEach(p => {
+            if (p.plan_type === 'fixed') {
+                const meta = p.metadata as unknown as FixedMetadata
+                if (meta?.fixed_event_id) ids.add(meta.fixed_event_id)
+            }
         })
-    }, [deadlines, selectedDate])
+        return ids
+    }, [plans])
 
-    // due_at이 선택된 날짜인 작업
-    const dayTasks = useMemo(() => {
-        return activeItems.filter(i => {
-            if (!i.due_at) return false
-            return isSameDay(new Date(i.due_at), selectedDate)
-        })
-    }, [activeItems, selectedDate])
+    // ─── 통합 타임라인 아이템 생성 ───
+    const timelineItems = useMemo(() => {
+        const items: TimelineItem[] = []
 
-    // due_at이 선택된 날짜인 plan
-    const dayPlans = useMemo(() => {
-        return plans.filter(p => {
-            if (!p.due_at) return false
-            return isSameDay(new Date(p.due_at), selectedDate)
+        // Fixed Events (plans와 연결된 건은 skip — plans 쪽에서 렌더링)
+        fixedEvents.forEach(e => {
+            if (linkedEventIds.has(e.id)) return
+            if (!isSameDay(new Date(e.start_at), selectedDate)) return
+            items.push({
+                id: `event-${e.id}`,
+                type: 'event',
+                title: e.title,
+                subtitle: e.importance,
+                time: new Date(e.start_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                sortTime: new Date(e.start_at).getTime(),
+                onClick: () => onNavigate?.('release-plan'),
+            })
         })
-    }, [plans, selectedDate])
+
+        // Deadlines
+        deadlines.forEach(d => {
+            if (!isSameDay(new Date(d.deadline_at), selectedDate)) return
+            items.push({
+                id: `deadline-${d.id}`,
+                type: 'deadline',
+                title: d.milestone,
+                subtitle: `Risk: ${d.risk_score}%`,
+                time: new Date(d.deadline_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                sortTime: new Date(d.deadline_at).getTime(),
+            })
+        })
+
+        // Tasks Due
+        activeItems.forEach(t => {
+            if (!t.due_at || !isSameDay(new Date(t.due_at), selectedDate)) return
+            items.push({
+                id: `task-${t.id}`,
+                type: 'task',
+                title: t.title,
+                subtitle: t.next_action || undefined,
+                time: new Date(t.due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                sortTime: new Date(t.due_at).getTime(),
+                onClick: () => onNavigate?.('active-task'),
+            })
+        })
+
+        // Plans (task/event/project)
+        plans.forEach(p => {
+            if (p.plan_type === 'fixed') {
+                // 반복 인스턴스 처리
+                const meta = p.metadata as unknown as FixedMetadata
+                if (meta?.recurrence) {
+                    const startDate = new Date(meta.start_at)
+                    const dayStart = new Date(selectedDate); dayStart.setHours(0, 0, 0, 0)
+                    const dayEnd = new Date(selectedDate); dayEnd.setHours(23, 59, 59, 999)
+                    const occurrences = generateOccurrences(meta.recurrence, startDate, { from: dayStart, to: dayEnd })
+                    if (occurrences.length > 0) {
+                        const occ = occurrences[0]
+                        const recDesc = getRecurrenceDescription(meta.recurrence)
+                        items.push({
+                            id: `fixed-${p.id}-${occ.toISOString()}`,
+                            type: 'fixed',
+                            title: p.title,
+                            subtitle: `🔁 ${recDesc}`,
+                            time: startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            sortTime: occ.getTime(),
+                            planId: p.id,
+                            onClick: () => onNavigate?.('release-plan'),
+                        })
+                    }
+                } else {
+                    // 비반복 고정 일정
+                    if (!meta?.start_at || !isSameDay(new Date(meta.start_at), selectedDate)) return
+                    items.push({
+                        id: `fixed-${p.id}`,
+                        type: 'fixed',
+                        title: p.title,
+                        subtitle: p.description || '고정 일정',
+                        time: new Date(meta.start_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        sortTime: new Date(meta.start_at).getTime(),
+                        planId: p.id,
+                        onClick: () => onNavigate?.('release-plan'),
+                    })
+                }
+                return
+            }
+            if (!p.due_at || !isSameDay(new Date(p.due_at), selectedDate)) return
+            items.push({
+                id: `plan-${p.id}`,
+                type: 'plan',
+                title: p.title,
+                subtitle: p.description || undefined,
+                time: new Date(p.due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                sortTime: new Date(p.due_at).getTime(),
+                planId: p.id,
+                onClick: () => onNavigate?.('release-plan'),
+            })
+        })
+
+        // 시간순 정렬
+        return items.sort((a, b) => a.sortTime - b.sortTime)
+    }, [fixedEvents, deadlines, activeItems, plans, selectedDate, onNavigate])
 
     const loading = itemsLoading || eventsLoading || deadlinesLoading || plansLoading
 
@@ -222,6 +332,7 @@ export function TimelineView({ onNavigate }: TimelineViewProps) {
         const hasDeadline = hasDeadlineOnDate(date)
         const hasDueTask = hasDueTaskOnDate(date)
         const hasPlan = hasPlanOnDate(date)
+        const hasRecurring = hasRecurringOnDate(date)
         const isCurrentMonth = isSameMonth(date, baseDate)
 
         return (
@@ -243,6 +354,7 @@ export function TimelineView({ onNavigate }: TimelineViewProps) {
                     {hasDeadline && <div className="w-1.5 h-1.5 rounded-full bg-red-500" />}
                     {hasDueTask && <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />}
                     {hasPlan && <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />}
+                    {hasRecurring && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
                 </div>
             </button>
         )
@@ -341,169 +453,74 @@ export function TimelineView({ onNavigate }: TimelineViewProps) {
                 {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </div>
 
-            {/* Fixed Events */}
-            {dayEvents.length > 0 && (
+            {/* ─── 통합 타임라인 (3열 그리드) ─── */}
+            {timelineItems.length > 0 ? (
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="flex items-center gap-2 text-base">
-                            <Calendar className="w-4 h-4 text-blue-500" />
-                            Fixed Events ({dayEvents.length})
+                            <Clock className="w-4 h-4" />
+                            Schedule ({timelineItems.length})
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-2">
-                        {dayEvents.map(event => (
-                            <div
-                                key={event.id}
-                                className="flex items-center justify-between p-3 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors"
-                                onClick={() => onNavigate?.('release-plan')}
-                                role="button"
-                                tabIndex={0}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <MapPin className="w-4 h-4 text-blue-600" />
-                                    <div>
-                                        <div className="font-medium text-sm">{event.title}</div>
-                                        <div className="text-xs text-muted-foreground">
-                                            {new Date(event.start_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            {' — '}
-                                            {new Date(event.end_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    <CardContent>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {timelineItems.map(item => {
+                                const colorMap = {
+                                    event: { bg: 'bg-blue-50 dark:bg-blue-950/30', hover: 'hover:bg-blue-100 dark:hover:bg-blue-950/50', icon: 'text-blue-600', dot: 'bg-blue-500' },
+                                    deadline: { bg: 'bg-red-50 dark:bg-red-950/30', hover: 'hover:bg-red-100 dark:hover:bg-red-950/50', icon: 'text-red-600', dot: 'bg-red-500' },
+                                    task: { bg: 'bg-yellow-50 dark:bg-yellow-950/30', hover: 'hover:bg-yellow-100 dark:hover:bg-yellow-950/50', icon: 'text-yellow-600', dot: 'bg-yellow-500' },
+                                    plan: { bg: 'bg-purple-50 dark:bg-purple-950/30', hover: 'hover:bg-purple-100 dark:hover:bg-purple-950/50', icon: 'text-purple-600', dot: 'bg-purple-500' },
+                                    fixed: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', hover: 'hover:bg-emerald-100 dark:hover:bg-emerald-950/50', icon: 'text-emerald-600', dot: 'bg-emerald-500' },
+                                }
+                                const colors = colorMap[item.type]
+                                const IconComponent = item.type === 'event' ? MapPin
+                                    : item.type === 'deadline' ? AlertTriangle
+                                        : item.type === 'task' ? Zap
+                                            : item.type === 'fixed' ? Repeat
+                                                : ListTodo
+
+                                return (
+                                    <div
+                                        key={item.id}
+                                        className={`p-3 rounded-lg transition-colors ${colors.bg} ${colors.hover} ${item.onClick ? 'cursor-pointer' : ''}`}
+                                        onClick={item.onClick}
+                                        role={item.onClick ? 'button' : undefined}
+                                        tabIndex={item.onClick ? 0 : undefined}
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex items-start gap-2 min-w-0 flex-1">
+                                                <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${colors.dot}`} />
+                                                <div className="min-w-0">
+                                                    <div className="font-medium text-sm truncate">{item.title}</div>
+                                                    {item.subtitle && (
+                                                        <div className="text-xs text-muted-foreground truncate">{item.subtitle}</div>
+                                                    )}
+                                                    {item.time && (
+                                                        <div className="text-xs text-muted-foreground mt-0.5">{item.time}</div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <IconComponent className={`w-3.5 h-3.5 ${colors.icon}`} />
+                                                {item.planId && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); void deletePlan(item.planId!) }}
+                                                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                                                        title="삭제"
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <Badge variant={event.importance === 'critical' ? 'destructive' : 'outline'}>
-                                    {event.importance}
-                                </Badge>
-                            </div>
-                        ))}
+                                )
+                            })}
+                        </div>
                     </CardContent>
                 </Card>
-            )}
-
-            {/* Deadlines */}
-            {dayDeadlines.length > 0 && (
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center gap-2 text-base">
-                            <AlertTriangle className="w-4 h-4 text-red-500" />
-                            Deadlines ({dayDeadlines.length})
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                        {dayDeadlines.map(dl => (
-                            <div key={dl.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-                                <div>
-                                    <div className="font-medium text-sm">{dl.milestone}</div>
-                                    <div className="text-xs text-muted-foreground">Risk score: {dl.risk_score}%</div>
-                                </div>
-                                <Badge variant={dl.risk_score > 70 ? 'destructive' : 'outline'}>
-                                    {dl.risk_score}% risk
-                                </Badge>
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Tasks Due */}
-            {dayTasks.length > 0 && (
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center gap-2 text-base">
-                            <Clock className="w-4 h-4 text-yellow-500" />
-                            Tasks Due ({dayTasks.length})
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                        {dayTasks.map(task => (
-                            <div
-                                key={task.id}
-                                className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg cursor-pointer hover:bg-yellow-100 transition-colors"
-                                onClick={() => onNavigate?.('active-task')}
-                                role="button"
-                                tabIndex={0}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <Zap className="w-4 h-4 text-yellow-600" />
-                                    <div>
-                                        <div className="font-medium text-sm">{task.title}</div>
-                                        {task.next_action && (
-                                            <div className="text-xs text-muted-foreground">Next: {task.next_action}</div>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    {task.estimate_min && (
-                                        <Badge variant="outline" className="text-xs">{task.estimate_min}min</Badge>
-                                    )}
-                                    {task.energy && (
-                                        <Badge variant="outline" className="text-xs">{task.energy}</Badge>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Plans Due */}
-            {dayPlans.length > 0 && (
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center gap-2 text-base">
-                            <ListTodo className="w-4 h-4 text-purple-500" />
-                            Plans ({dayPlans.length})
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                        {dayPlans.map(plan => {
-                            const PlanIcon = plan.plan_type === 'project' ? GitBranch
-                                : plan.plan_type === 'event' ? Calendar
-                                    : ListTodo
-                            return (
-                                <div
-                                    key={plan.id}
-                                    className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-950/50 transition-colors"
-                                    onClick={() => onNavigate?.('release-plan')}
-                                    role="button"
-                                    tabIndex={0}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <PlanIcon className="w-4 h-4 text-purple-600" />
-                                        <div>
-                                            <div className="font-medium text-sm">{plan.title}</div>
-                                            {plan.description && (
-                                                <div className="text-xs text-muted-foreground line-clamp-1">{plan.description}</div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <Badge variant="outline" className="text-xs capitalize">{plan.plan_type}</Badge>
-                                        {plan.priority && (
-                                            <Badge
-                                                variant={plan.priority === 'critical' ? 'destructive' : 'outline'}
-                                                className="text-xs"
-                                            >
-                                                {plan.priority}
-                                            </Badge>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => void deletePlan(plan.id)}
-                                            className="ml-1 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
-                                            title="삭제"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Empty state */}
-            {dayEvents.length === 0 && dayDeadlines.length === 0 && dayTasks.length === 0 && dayPlans.length === 0 && (
+            ) : (
                 <Card>
                     <CardContent className="p-6 text-center text-muted-foreground">
                         <CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-30" />

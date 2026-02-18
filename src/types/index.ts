@@ -177,13 +177,27 @@ export type EventStage =
 
 // === Plan 시스템 ===
 
-export type PlanType = 'task' | 'event' | 'project'
+export type PlanType = 'task' | 'event' | 'fixed' | 'project'
 
 export type PlanStatus = WorkItemStatus  // 동일 상태 모델 재사용
 
 export type PlanPriority = 'low' | 'medium' | 'high' | 'critical'
 
 export type ReminderOption = '30min' | '1h' | '1day' | '1week'
+
+// === 반복 규칙 (Planfit recurrence.ts 알고리즘 참조) ===
+
+export type RecurrenceType = 'daily' | 'weekly' | 'monthly'
+export type RecurrenceEndType = 'never' | 'date' | 'count'
+
+export interface RecurrenceRule {
+    type: RecurrenceType
+    weekDays?: number[]             // 0=일 ~ 6=토, weekly일 때만
+    monthlyType?: 'date' | 'weekday'  // monthly일 때만
+    endType: RecurrenceEndType
+    endDate?: string                // endType='date'일 때, YYYY-MM-DD
+    count?: number                  // endType='count'일 때
+}
 
 // 타입별 metadata 구조
 export interface TaskMetadata {
@@ -198,13 +212,22 @@ export interface EventMetadata {
     fixed_event_id?: string    // fixed_events 테이블 연동 ID
 }
 
+export interface FixedMetadata {
+    start_at: string           // ISO 8601
+    end_at?: string            // ISO 8601
+    location?: string
+    reminders: ReminderOption[]
+    recurrence?: RecurrenceRule  // 반복 없으면 undefined
+    fixed_event_id?: string    // fixed_events 테이블 연동 ID
+}
+
 export interface ProjectMetadata {
     git_repo?: string
     goals?: string
     milestones?: string[]
 }
 
-export type PlanMetadata = TaskMetadata | EventMetadata | ProjectMetadata
+export type PlanMetadata = TaskMetadata | EventMetadata | FixedMetadata | ProjectMetadata
 
 export interface Plan {
     id: string
@@ -226,12 +249,20 @@ export interface PlanFormData {
     priority: PlanPriority
     description: string
     due_at: string
-    // Event 전용
+    // Event / Fixed 공용
     start_at: string
     start_time: string
     end_time: string
     location: string
     reminders: ReminderOption[]
+    // Fixed 전용 — 반복 규칙
+    is_recurring: boolean
+    recurrence_type: RecurrenceType
+    recurrence_weekDays: number[]
+    recurrence_monthlyType: 'date' | 'weekday'
+    recurrence_endType: RecurrenceEndType
+    recurrence_endDate: string
+    recurrence_count: number
     // Project 전용
     git_repo: string
 }

@@ -15,13 +15,17 @@ import {
     Bell,
     FileText,
     ChevronRight,
+    Repeat,
 } from 'lucide-react'
 import { InlineCalendar } from '../ui/InlineCalendar'
+import { getRecurrenceDescription } from '../../lib/utils/recurrence'
 import type {
     PlanType,
     PlanPriority,
     ReminderOption,
     PlanFormData,
+    RecurrenceType,
+    RecurrenceEndType,
 } from '../../types/index'
 import { usePlans } from '../../hooks/usePlans'
 
@@ -30,6 +34,21 @@ import { usePlans } from '../../hooks/usePlans'
 const PLAN_TYPES: { id: PlanType; label: string; icon: typeof ListTodo; desc: string }[] = [
     { id: 'task', label: 'Task', icon: ListTodo, desc: '일반 할 일' },
     { id: 'event', label: 'Event', icon: Calendar, desc: '날짜/시간 약속' },
+    { id: 'fixed', label: 'Fixed', icon: Repeat, desc: '고정/반복 일정' },
+]
+
+const RECURRENCE_TYPES: { id: RecurrenceType; label: string }[] = [
+    { id: 'daily', label: '매일' },
+    { id: 'weekly', label: '매주' },
+    { id: 'monthly', label: '매월' },
+]
+
+const WEEK_DAYS = ['일', '월', '화', '수', '목', '금', '토']
+
+const END_TYPES: { id: RecurrenceEndType; label: string }[] = [
+    { id: 'never', label: '무기한' },
+    { id: 'count', label: '횟수' },
+    { id: 'date', label: '날짜까지' },
 ]
 
 const PRIORITIES: { id: PlanPriority; label: string; color: string }[] = [
@@ -68,6 +87,13 @@ function getInitialFormData(): PlanFormData {
         end_time: '',
         location: '',
         reminders: [],
+        is_recurring: false,
+        recurrence_type: 'weekly',
+        recurrence_weekDays: [],
+        recurrence_monthlyType: 'date',
+        recurrence_endType: 'never',
+        recurrence_endDate: '',
+        recurrence_count: 10,
         git_repo: '',
     }
 }
@@ -116,10 +142,30 @@ export function PlanCreateModal({ open, onOpenChange, onPlanComplete }: PlanCrea
             return
         }
 
-        // Event 타입 검증
-        if (form.plan_type === 'event' && !form.start_at) {
+        // Event / Fixed 타입 검증
+        if ((form.plan_type === 'event' || form.plan_type === 'fixed') && !form.start_at) {
             setError('날짜를 선택하세요')
             return
+        }
+
+        // Fixed 타입 반복 검증 (반복 ON일 때만)
+        if (form.plan_type === 'fixed' && form.is_recurring) {
+            if (form.recurrence_type === 'weekly' && form.recurrence_weekDays.length === 0) {
+                setError('반복할 요일을 선택하세요')
+                return
+            }
+            if (form.recurrence_endType === 'date' && !form.recurrence_endDate) {
+                setError('종료 날짜를 선택하세요')
+                return
+            }
+            // 시작일-요일 정합성 검증
+            if (form.recurrence_type === 'weekly' && form.start_at && form.recurrence_weekDays.length > 0) {
+                const startDay = new Date(form.start_at).getDay()
+                if (!form.recurrence_weekDays.includes(startDay)) {
+                    setError(`시작일의 요일이 선택한 반복 요일에 포함되지 않습니다. 시작일을 ${WEEK_DAYS.filter((_, i) => form.recurrence_weekDays.includes(i)).join(', ')}요일로 설정하세요.`)
+                    return
+                }
+            }
         }
 
         setError(null)
@@ -334,6 +380,271 @@ export function PlanCreateModal({ open, onOpenChange, onPlanComplete }: PlanCrea
                             </div>
                         )}
 
+                        {/* ─── Fixed Fields (Event 필드 재사용 + 반복 설정) ─── */}
+                        {form.plan_type === 'fixed' && (
+                            <div className="space-y-4">
+                                {/* 반복 설정 토글 */}
+                                <div className="flex items-center justify-between">
+                                    <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                        <Repeat className="w-3.5 h-3.5" />
+                                        반복 설정
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => updateForm('is_recurring', !form.is_recurring)}
+                                        className={`
+                                            relative w-11 h-6 rounded-full transition-colors cursor-pointer
+                                            ${form.is_recurring ? 'bg-primary' : 'bg-muted'}
+                                        `}
+                                    >
+                                        <span className={`
+                                            absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform
+                                            ${form.is_recurring ? 'translate-x-5' : 'translate-x-0'}
+                                        `} />
+                                    </button>
+                                </div>
+
+                                {form.is_recurring && (
+                                    <>
+                                        {/* 반복 주기 */}
+                                        <div className="space-y-2">
+                                            <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                                <Repeat className="w-3.5 h-3.5" />
+                                                반복 주기
+                                            </label>
+                                            <div className="flex gap-2">
+                                                {RECURRENCE_TYPES.map(({ id, label }) => (
+                                                    <button
+                                                        key={id}
+                                                        type="button"
+                                                        onClick={() => updateForm('recurrence_type', id)}
+                                                        className={`
+                                                            px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer border
+                                                            ${form.recurrence_type === id
+                                                                ? 'border-primary bg-primary/10 text-primary'
+                                                                : 'border-muted bg-muted/30 text-muted-foreground hover:border-muted-foreground/30'
+                                                            }
+                                                        `}
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* 요일 선택 (weekly일 때만) */}
+                                        {form.recurrence_type === 'weekly' && (
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">요일 선택</label>
+                                                <div className="flex gap-1.5">
+                                                    {WEEK_DAYS.map((day, idx) => {
+                                                        const selected = form.recurrence_weekDays.includes(idx)
+                                                        return (
+                                                            <button
+                                                                key={idx}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const next = selected
+                                                                        ? form.recurrence_weekDays.filter(d => d !== idx)
+                                                                        : [...form.recurrence_weekDays, idx]
+                                                                    updateForm('recurrence_weekDays', next)
+                                                                }}
+                                                                className={`
+                                                                    w-10 h-10 rounded-full text-sm font-medium transition-all cursor-pointer border
+                                                                    ${selected
+                                                                        ? 'border-primary bg-primary text-primary-foreground'
+                                                                        : 'border-muted bg-muted/30 text-muted-foreground hover:border-muted-foreground/30'
+                                                                    }
+                                                                `}
+                                                            >
+                                                                {day}
+                                                            </button>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Monthly 옵션 */}
+                                        {form.recurrence_type === 'monthly' && (
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">반복 기준</label>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => updateForm('recurrence_monthlyType', 'date')}
+                                                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border ${form.recurrence_monthlyType === 'date'
+                                                            ? 'border-primary bg-primary/10 text-primary'
+                                                            : 'border-muted bg-muted/30 text-muted-foreground'
+                                                            }`}
+                                                    >
+                                                        같은 날짜
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => updateForm('recurrence_monthlyType', 'weekday')}
+                                                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border ${form.recurrence_monthlyType === 'weekday'
+                                                            ? 'border-primary bg-primary/10 text-primary'
+                                                            : 'border-muted bg-muted/30 text-muted-foreground'
+                                                            }`}
+                                                    >
+                                                        같은 요일
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* 종료 조건 */}
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">종료 조건</label>
+                                            <div className="flex gap-2">
+                                                {END_TYPES.map(({ id, label }) => (
+                                                    <button
+                                                        key={id}
+                                                        type="button"
+                                                        onClick={() => updateForm('recurrence_endType', id)}
+                                                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border ${form.recurrence_endType === id
+                                                            ? 'border-primary bg-primary/10 text-primary'
+                                                            : 'border-muted bg-muted/30 text-muted-foreground'
+                                                            }`}
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            {/* 횟수 입력 */}
+                                            {form.recurrence_endType === 'count' && (
+                                                <div className="flex items-center gap-2 mt-2">
+                                                    <input
+                                                        type="number"
+                                                        min={1}
+                                                        max={365}
+                                                        value={form.recurrence_count}
+                                                        onChange={(e) => updateForm('recurrence_count', Math.max(1, parseInt(e.target.value) || 1))}
+                                                        className="w-20 px-3 py-2 text-sm border rounded-lg bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                                    />
+                                                    <span className="text-sm text-muted-foreground">회 반복</span>
+                                                </div>
+                                            )}
+
+                                            {/* 종료 날짜 */}
+                                            {form.recurrence_endType === 'date' && (
+                                                <div className="mt-2">
+                                                    <input
+                                                        type="date"
+                                                        value={form.recurrence_endDate}
+                                                        onChange={(e) => updateForm('recurrence_endDate', e.target.value)}
+                                                        className="w-full px-3 py-2 text-sm border rounded-lg bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 반복 요약 미리보기 */}
+                                        <div className="px-3 py-2 bg-muted/30 rounded-lg text-sm text-muted-foreground">
+                                            {getRecurrenceDescription({
+                                                type: form.recurrence_type,
+                                                weekDays: form.recurrence_type === 'weekly' ? form.recurrence_weekDays : undefined,
+                                                monthlyType: form.recurrence_type === 'monthly' ? form.recurrence_monthlyType : undefined,
+                                                endType: form.recurrence_endType,
+                                                endDate: form.recurrence_endType === 'date' ? form.recurrence_endDate : undefined,
+                                                count: form.recurrence_endType === 'count' ? form.recurrence_count : undefined,
+                                            })}
+                                        </div>
+                                    </>
+                                )}
+
+
+
+                                {/* 날짜 — 필수 (시작일) */}
+                                <InlineCalendar
+                                    value={form.start_at}
+                                    onChange={(date) => updateForm('start_at', date)}
+                                    required
+                                    label="시작일"
+                                />
+
+                                {/* 시간 */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Start</label>
+                                        <input
+                                            type="time"
+                                            value={form.start_time}
+                                            onChange={(e) => updateForm('start_time', e.target.value)}
+                                            className="w-full px-3 py-2 text-sm border rounded-lg bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                            End
+                                            <span className="text-muted-foreground/50 normal-case tracking-normal ml-1">(선택)</span>
+                                        </label>
+                                        <input
+                                            type="time"
+                                            value={form.end_time}
+                                            onChange={(e) => updateForm('end_time', e.target.value)}
+                                            className="w-full px-3 py-2 text-sm border rounded-lg bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Location */}
+                                <div className="space-y-2">
+                                    <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                        <MapPin className="w-3.5 h-3.5" />
+                                        Location
+                                        <span className="text-muted-foreground/50 normal-case tracking-normal">(선택)</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="장소를 입력하세요..."
+                                        value={form.location}
+                                        onChange={(e) => updateForm('location', e.target.value)}
+                                        className="w-full px-3 py-2 text-sm border rounded-lg bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                                    />
+                                </div>
+
+                                {/* Reminder */}
+                                <div className="space-y-2">
+                                    <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                        <Bell className="w-3.5 h-3.5" />
+                                        Reminder
+                                        <span className="text-muted-foreground/50 normal-case tracking-normal">(다중 선택)</span>
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {REMINDER_OPTIONS.map(({ id, label }) => {
+                                            const checked = form.reminders.includes(id)
+                                            return (
+                                                <button
+                                                    key={id}
+                                                    type="button"
+                                                    onClick={() => toggleReminder(id)}
+                                                    className={`
+                                                        flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer border
+                                                        ${checked
+                                                            ? 'border-primary bg-primary/10 text-primary'
+                                                            : 'border-muted bg-muted/30 text-muted-foreground hover:border-muted-foreground/30'
+                                                        }
+                                                    `}
+                                                >
+                                                    <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${checked ? 'bg-primary border-primary' : 'border-muted-foreground/40'}`}>
+                                                        {checked && (
+                                                            <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                    {label}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
 
 
                         {/* Error */}
@@ -348,14 +659,14 @@ export function PlanCreateModal({ open, onOpenChange, onPlanComplete }: PlanCrea
                             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={creating}>
                                 Cancel
                             </Button>
-                            <Button onClick={handleCreate} disabled={creating || !form.title.trim() || (form.plan_type === 'task' && !form.due_at) || (form.plan_type === 'event' && !form.start_at)}>
+                            <Button onClick={handleCreate} disabled={creating || !form.title.trim() || (form.plan_type === 'task' && !form.due_at) || ((form.plan_type === 'event' || form.plan_type === 'fixed') && !form.start_at)}>
                                 {creating ? 'Creating...' : 'Create Plan'}
                             </Button>
                         </div>
                     </div>
                 </Dialog.Content>
             </Dialog.Portal>
-        </Dialog.Root>
+        </Dialog.Root >
     )
 }
 

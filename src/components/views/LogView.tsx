@@ -87,7 +87,14 @@ function formatEventType(eventType: string): string {
 }
 
 export function LogView() {
-    const { logs, loading, refresh } = useEventLogs({ limit: 100 })
+    // 7일 전 날짜 계산
+    const since7d = useMemo(() => {
+        const d = new Date()
+        d.setDate(d.getDate() - 7)
+        return d.toISOString()
+    }, [])
+
+    const { logs, loading, refresh } = useEventLogs({ since: since7d })
     const [filterActor, setFilterActor] = useState<string | null>(null)
     const [filterType, setFilterType] = useState<string | null>(null)
 
@@ -123,7 +130,7 @@ export function LogView() {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-2xl font-semibold">Activity Log</h2>
-                    <p className="text-muted-foreground">Plans, Projects 생성·수정·삭제 등 전체 활동 기록</p>
+                    <p className="text-muted-foreground">최근 7일간 Plans, Projects 생성·수정·삭제 등 전체 활동 기록</p>
                 </div>
                 <Button variant="outline" onClick={() => void refresh()}>
                     <RefreshCw className="w-4 h-4 mr-2" />

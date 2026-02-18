@@ -16,6 +16,7 @@ interface UseEventLogsReturn {
 export function useEventLogs(options?: {
     eventType?: string
     limit?: number
+    since?: string  // ISO 8601 — 이 날짜 이후 로그만 반환
 }): UseEventLogsReturn {
     const [logs, setLogs] = useState<EventLogRow[]>([])
     const [loading, setLoading] = useState(true)
@@ -23,19 +24,20 @@ export function useEventLogs(options?: {
 
     const eventType = options?.eventType
     const limit = options?.limit
+    const since = options?.since
 
     const refresh = useCallback(async () => {
         try {
             setLoading(true)
             setError(null)
-            const data = await getEventLogs({ eventType, limit })
+            const data = await getEventLogs({ eventType, limit, since })
             setLogs(data)
         } catch (err) {
             setError(err instanceof Error ? err.message : '이벤트 로그 로딩 실패')
         } finally {
             setLoading(false)
         }
-    }, [eventType, limit])
+    }, [eventType, limit, since])
 
     useEffect(() => {
         void refresh()

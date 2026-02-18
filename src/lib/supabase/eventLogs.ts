@@ -14,15 +14,20 @@ import type {
 export async function getEventLogs(options?: {
     eventType?: string
     limit?: number
+    since?: string  // ISO 8601 — 이 날짜 이후 로그만 반환
 }) {
     let query = supabase
         .from('event_logs')
         .select('*')
         .order('triggered_at', { ascending: false })
-        .limit(options?.limit ?? 50)
+        .limit(options?.limit ?? 500)
 
     if (options?.eventType) {
         query = query.eq('event_type', options.eventType)
+    }
+
+    if (options?.since) {
+        query = query.gte('triggered_at', options.since)
     }
 
     const { data, error } = await query

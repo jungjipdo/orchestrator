@@ -1,9 +1,9 @@
 // ============================================
 // AppLayout — 6탭 사이드바 + 헤더 + 뷰 전환
-// Settings는 하단 분리 유지
+// 모바일: 하단 탭 바 + 스와이프 제스처
 // ============================================
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { useSessionLog } from '../../hooks/useSessionLog'
 import { useTheme } from '../../hooks/useTheme'
 import { Button } from '../ui/button'
@@ -59,10 +59,47 @@ export function AppLayout() {
         { id: 'log', label: 'Log', icon: ScrollText, badge: null },
     ]
 
+    // ─── 모바일 하단 탭 (5개 — More로 Settings+Log 묶음) ───
+    const mobileTabItems: { id: ViewType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+        { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+        { id: 'timeline', label: 'Timeline', icon: Clock },
+        { id: 'release-plan', label: 'Releases', icon: GitBranch },
+        { id: 'active-task', label: 'Tasks', icon: Zap },
+        { id: 'settings', label: 'More', icon: Settings },
+    ]
+
     // ─── 네비게이션 콜백 ───
     const handleNavigate = useCallback((tab: ViewType) => {
         setActiveTab(tab)
         setSidebarOpen(false)
+    }, [])
+
+    // ─── 터치 스와이프 (좌측 edge → 사이드바 열기) ───
+    const touchRef = useRef<{ startX: number; startY: number } | null>(null)
+
+    useEffect(() => {
+        const handleTouchStart = (e: TouchEvent) => {
+            const touch = e.touches[0]
+            if (touch.clientX < 24) {
+                touchRef.current = { startX: touch.clientX, startY: touch.clientY }
+            }
+        }
+        const handleTouchEnd = (e: TouchEvent) => {
+            if (!touchRef.current) return
+            const touch = e.changedTouches[0]
+            const dx = touch.clientX - touchRef.current.startX
+            const dy = Math.abs(touch.clientY - touchRef.current.startY)
+            if (dx > 60 && dy < 100) {
+                setSidebarOpen(true)
+            }
+            touchRef.current = null
+        }
+        document.addEventListener('touchstart', handleTouchStart, { passive: true })
+        document.addEventListener('touchend', handleTouchEnd, { passive: true })
+        return () => {
+            document.removeEventListener('touchstart', handleTouchStart)
+            document.removeEventListener('touchend', handleTouchEnd)
+        }
     }, [])
 
     // ─── 뷰 렌더 ───
@@ -249,12 +286,45 @@ export function AppLayout() {
                 )}
 
                 {/* Main Content */}
-                <main className="flex-1 p-6 lg:ml-0">
+                <main className="flex-1 p-4 pb-20 lg:p-6 lg:pb-6 lg:ml-0">
                     <div className="max-w-7xl mx-auto">
                         {renderContent()}
                     </div>
                 </main>
             </div>
+
+            {/* Mobile Bottom Tab Bar */}
+            <nav
+                className="fixed bottom-0 left-0 right-0 z-50 border-t lg:hidden"
+                style={{
+                    background: 'var(--glass-bg)',
+                    borderColor: 'var(--glass-border)',
+                    backdropFilter: `blur(var(--glass-blur))`,
+                    WebkitBackdropFilter: `blur(var(--glass-blur))`,
+                    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                }}
+            >
+                <div className="flex items-center justify-around h-14">
+                    {mobileTabItems.map((item) => {
+                        const Icon = item.icon
+                        const isActive = activeTab === item.id
+                        return (
+                            <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => handleNavigate(item.id)}
+                                className={`flex flex-col items-center justify-center gap-0.5 w-full h-full text-[10px] transition-colors ${isActive
+                                        ? 'text-primary font-medium'
+                                        : 'text-muted-foreground'
+                                    }`}
+                            >
+                                <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : ''}`} />
+                                <span>{item.label}</span>
+                            </button>
+                        )
+                    })}
+                </div>
+            </nav>
         </div>
     )
 }

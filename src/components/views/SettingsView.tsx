@@ -17,7 +17,7 @@ import {
     Check,
 } from 'lucide-react'
 import { useGitHub } from '../../hooks/useGitHub'
-import { useModelScores, type ModelScoreEntry } from '../../hooks/useModelScores'
+import { useModelScores, type ModelScoreEntry, DEFAULT_SCORES } from '../../hooks/useModelScores'
 import { useEditorModels } from '../../hooks/useEditorModels'
 import type { AIModel, EditorType } from '../../types/index'
 
@@ -300,9 +300,18 @@ export function SettingsView() {
                                                         onTouchEnd={() => handleScoreCommit(entry)}
                                                         className="w-full h-1.5 accent-primary cursor-pointer"
                                                     />
-                                                    <span className="text-xs text-muted-foreground w-7 text-right tabular-nums">
-                                                        {getScoreValue(entry.model_key, cat)}
-                                                    </span>
+                                                    {(() => {
+                                                        const current = getScoreValue(entry.model_key, cat)
+                                                        const defaultVal = DEFAULT_SCORES[entry.model_key]?.[cat as keyof typeof DEFAULT_SCORES[typeof entry.model_key]] ?? 50
+                                                        const delta = current - defaultVal
+                                                        const isModified = delta !== 0
+                                                        return (
+                                                            <span className={`text-xs w-7 text-right tabular-nums font-medium ${isModified ? 'text-red-500' : 'text-foreground'
+                                                                }`}>
+                                                                {isModified && delta > 0 ? '+' : ''}{isModified ? delta : current}
+                                                            </span>
+                                                        )
+                                                    })()}
                                                 </div>
                                             </td>
                                         ))}

@@ -6,15 +6,25 @@ import { useState, useEffect, useCallback } from 'react'
 import { getModelScores, upsertModelScore, type ModelScore } from '../lib/supabase/modelScores'
 import type { AIModel } from '../types/index'
 
-// 모든 모델의 기본 점수
+// 모든 모델의 기본 점수 (사용자 제공 지표 2026.02.19)
 const DEFAULT_SCORES: Record<AIModel, { coding: number; analysis: number; documentation: number; speed: number }> = {
-    claude_opus_4_6: { coding: 95, analysis: 92, documentation: 85, speed: 40 },
-    claude_sonnet_4_6: { coding: 88, analysis: 85, documentation: 80, speed: 70 },
-    gpt_5_3_codex: { coding: 92, analysis: 88, documentation: 82, speed: 65 },
-    gpt_5_3_codex_spark: { coding: 80, analysis: 75, documentation: 70, speed: 90 },
-    gemini_3_pro: { coding: 85, analysis: 90, documentation: 85, speed: 60 },
-    gemini_3_flash: { coding: 72, analysis: 75, documentation: 75, speed: 95 },
-    gemini_3_deep_think: { coding: 90, analysis: 95, documentation: 88, speed: 30 },
+    // Anthropic
+    claude_opus_4_6: { coding: 92, analysis: 94, documentation: 88, speed: 45 },
+    claude_sonnet_4_6: { coding: 88, analysis: 90, documentation: 86, speed: 65 },
+    claude_haiku_4_5: { coding: 72, analysis: 74, documentation: 78, speed: 92 },
+    // OpenAI
+    gpt_5_3_codex: { coding: 95, analysis: 87, documentation: 82, speed: 74 },
+    gpt_5_3_codex_spark: { coding: 82, analysis: 72, documentation: 68, speed: 100 },
+    gpt_5_2_codex: { coding: 88, analysis: 84, documentation: 80, speed: 70 },
+    gpt_5_2: { coding: 85, analysis: 86, documentation: 84, speed: 68 },
+    // Cursor
+    cursor_composer: { coding: 86, analysis: 82, documentation: 78, speed: 75 },
+    // Google
+    gemini_3_pro: { coding: 85, analysis: 93, documentation: 89, speed: 58 },
+    gemini_3_flash: { coding: 83, analysis: 88, documentation: 87, speed: 92 },
+    gemini_3_deep_think: { coding: 78, analysis: 100, documentation: 72, speed: 28 },
+    gemini_2_5_pro: { coding: 82, analysis: 88, documentation: 86, speed: 55 },
+    gemini_2_5_flash: { coding: 75, analysis: 80, documentation: 82, speed: 90 },
 }
 
 export interface ModelScoreEntry {

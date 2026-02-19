@@ -123,53 +123,53 @@ export function Dashboard({ refreshTrigger, refresh, onNavigate }: DashboardProp
 
             {/* Key Metrics — 5 cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                <Card>
+                <Card className="border-l-4 border-l-violet-500 hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm">Total</CardTitle>
-                        <ListTodo className="w-4 h-4 text-muted-foreground" />
+                        <ListTodo className="w-4 h-4 text-violet-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl">{totalTasks}</div>
+                        <div className="text-2xl font-bold">{totalTasks}</div>
                         <p className="text-xs text-muted-foreground">all items</p>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="border-l-4 border-l-blue-500 hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm">Plans</CardTitle>
-                        <GitBranch className="w-4 h-4 text-muted-foreground" />
+                        <GitBranch className="w-4 h-4 text-blue-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl">{plans.length}</div>
+                        <div className="text-2xl font-bold">{plans.length}</div>
                         <p className="text-xs text-muted-foreground">{activePlanCount} active</p>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="border-l-4 border-l-emerald-500 hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm">Projects</CardTitle>
-                        <Github className="w-4 h-4 text-muted-foreground" />
+                        <Github className="w-4 h-4 text-emerald-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl">{projects.length}</div>
+                        <div className="text-2xl font-bold">{projects.length}</div>
                         <p className="text-xs text-muted-foreground">GitHub repos</p>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm">Active</CardTitle>
-                        <Activity className="w-4 h-4 text-muted-foreground" />
+                        <Activity className="w-4 h-4 text-amber-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl">{activeCount}</div>
+                        <div className="text-2xl font-bold">{activeCount}</div>
                         <p className="text-xs text-muted-foreground">{activePlanCount + activeProjectCount} plans/projects</p>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="border-l-4 border-l-rose-500 hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm">Today</CardTitle>
-                        <Calendar className="w-4 h-4 text-muted-foreground" />
+                        <Calendar className="w-4 h-4 text-rose-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl">{todayEvents.length}</div>
+                        <div className="text-2xl font-bold">{todayEvents.length}</div>
                         <p className="text-xs text-muted-foreground">events</p>
                     </CardContent>
                 </Card>

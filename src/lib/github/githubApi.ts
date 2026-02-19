@@ -155,17 +155,50 @@ async function githubFetch<T>(path: string, token: string): Promise<T> {
     return res.json() as Promise<T>
 }
 
-/** 연결된 계정의 레포 목록 */
+/** 연결된 계정의 레포 목록 (개인 + 조직 레포 통합) */
 export async function listRepos(token: string): Promise<GitHubRepo[]> {
-    // Installation으로 접근 가능한 레포 목록 (최대 100개)
-    const data = await githubFetch<{ repositories: GitHubRepo[] } | GitHubRepo[]>(
+    // 1) 사용자 개인 레포 (owner, collaborator, org_member)
+    const userReposPromise = githubFetch<{ repositories: GitHubRepo[] } | GitHubRepo[]>(
         '/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator,organization_member',
         token,
     )
 
-    // GitHub App installation vs User token 응답 구조 대응
-    if (Array.isArray(data)) return data
-    return data.repositories ?? []
+    // 2) 사용자의 조직 목록 → 각 조직의 레포 가져오기
+    let orgRepos: GitHubRepo[] = []
+    try {
+        const orgs = await githubFetch<{ login: string }[]>('/user/orgs?per_page=100', token)
+        const orgRepoResults = await Promise.allSettled(
+            orgs.map(org =>
+                githubFetch<GitHubRepo[]>(
+                    `/orgs/${org.login}/repos?per_page=100&sort=pushed&type=all`,
+                    token,
+                )
+            )
+        )
+        for (const result of orgRepoResults) {
+            if (result.status === 'fulfilled') {
+                orgRepos.push(...result.value)
+            }
+        }
+    } catch {
+        // org 목록 가져오기 실패해도 개인 레포는 반환
+        console.warn('[listRepos] org repos fetch failed, continuing with user repos only')
+    }
+
+    const data = await userReposPromise
+    const userRepos = Array.isArray(data) ? data : (data.repositories ?? [])
+
+    // 3) 중복 제거 (id 기준) 후 병합
+    const seen = new Set<number>()
+    const merged: GitHubRepo[] = []
+    for (const repo of [...userRepos, ...orgRepos]) {
+        if (!seen.has(repo.id)) {
+            seen.add(repo.id)
+            merged.push(repo)
+        }
+    }
+
+    return merged
 }
 
 /** 특정 레포의 브랜치 목록 */

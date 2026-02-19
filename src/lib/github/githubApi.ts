@@ -60,6 +60,61 @@ export async function disconnectGitHub(connectionId: string): Promise<void> {
     if (error) throw error
 }
 
+/**
+ * Supabase Auth 세션에서 GitHub provider_token을 꺼내
+ * github_connections 테이블에 자동 upsert.
+ * (signInWithOAuth 후 호출)
+ */
+export async function syncGitHubFromSession(): Promise<GitHubConnection | null> {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+
+    const providerToken = session.provider_token
+    if (!providerToken) return null
+
+    // GitHub API로 username 조회
+    let username: string | null = null
+    try {
+        const res = await fetch('https://api.github.com/user', {
+            headers: {
+                Authorization: `Bearer ${providerToken}`,
+                Accept: 'application/vnd.github+json',
+            },
+        })
+        if (res.ok) {
+            const user = await res.json()
+            username = user.login ?? null
+        }
+    } catch {
+        // username 못 가져와도 연결은 진행
+    }
+
+    // github_connections에 upsert
+    const { data, error } = await supabase
+        .from('github_connections')
+        .upsert(
+            {
+                user_id: session.user.id,
+                installation_id: 0,  // OAuth App 방식은 installation 불필요
+                github_username: username,
+                access_token: providerToken,
+                refresh_token: session.provider_refresh_token ?? null,
+                token_expires_at: session.expires_at
+                    ? new Date(session.expires_at * 1000).toISOString()
+                    : null,
+            },
+            { onConflict: 'user_id' },
+        )
+        .select()
+        .single()
+
+    if (error) {
+        console.error('GitHub connection sync 실패:', error)
+        return null
+    }
+    return data as GitHubConnection
+}
+
 // ─── GitHub API 호출 ───
 
 /** GitHub 토큰 만료 에러 */
@@ -125,20 +180,58 @@ export async function listBranches(
     )
 }
 
-// ─── GitHub App OAuth URL ───
+// ─── README 조회 ───
 
-const GITHUB_APP_SLUG = import.meta.env.VITE_GITHUB_APP_SLUG ?? 'orchestrator-wi11y'
-const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID ?? ''
-
-/** GitHub App 연결 URL — 이미 설치됐으면 OAuth authorize, 아니면 installations/new */
-export function getGitHubInstallUrl(): string {
-    // Client ID가 설정돼 있으면 OAuth authorize (이미 설치된 경우에도 작동)
-    if (GITHUB_CLIENT_ID) {
-        return `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}`
+/** 레포의 README.md 내용 가져오기 (Base64 디코딩) */
+export async function getReadme(
+    token: string,
+    owner: string,
+    repo: string,
+): Promise<string | null> {
+    try {
+        const data = await githubFetch<{ content: string; encoding: string }>(
+            `/repos/${owner}/${repo}/readme`,
+            token,
+        )
+        if (data.encoding === 'base64') {
+            return atob(data.content.replace(/\n/g, ''))
+        }
+        return data.content
+    } catch {
+        // README 없는 레포도 있음
+        return null
     }
-    // fallback: App installation 페이지
-    return `https://github.com/apps/${GITHUB_APP_SLUG}/installations/new`
 }
+
+// ─── 커밋 상세 조회 ───
+
+interface CommitDetailFile {
+    filename: string
+    status: string  // 'added' | 'modified' | 'removed'
+    additions: number
+    deletions: number
+}
+
+/** 특정 커밋의 변경 파일 목록 */
+export async function getCommitDetail(
+    token: string,
+    owner: string,
+    repo: string,
+    sha: string,
+): Promise<CommitDetailFile[]> {
+    try {
+        const data = await githubFetch<{ files?: CommitDetailFile[] }>(
+            `/repos/${owner}/${repo}/commits/${sha}`,
+            token,
+        )
+        return data.files ?? []
+    } catch {
+        return []
+    }
+}
+
+// ─── NOTE: GitHub OAuth는 supabase.auth.signInWithOAuth()로 처리 ───
+// getGitHubInstallUrl()은 더 이상 사용하지 않음
 
 // ─── Issues / PRs / Commits Types ───
 // 필요한 GitHub App 권한:

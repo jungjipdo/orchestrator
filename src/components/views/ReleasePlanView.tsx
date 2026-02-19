@@ -535,7 +535,10 @@ export function ReleasePlanView() {
                                         <div className="flex items-center gap-3 min-w-0">
                                             <Github className="w-5 h-5 text-muted-foreground shrink-0" />
                                             <div className="min-w-0">
-                                                <div className="font-medium text-sm truncate">{project.repo_full_name}</div>
+                                                <div className="font-medium text-sm truncate flex items-center gap-1">
+                                                    <span className="text-muted-foreground">{project.repo_full_name.split('/')[0]}/</span>
+                                                    <span style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }} className="dark:!bg-[#7f1d1d33] dark:!text-[#fca5a5]">{project.repo_full_name.split('/')[1]}</span>
+                                                </div>
                                                 {project.description && (
                                                     <p className="text-xs text-muted-foreground truncate mt-0.5">{project.description}</p>
                                                 )}
@@ -800,7 +803,10 @@ export function ReleasePlanView() {
                                         <div className="w-3 h-3 rounded-full bg-green-500" />
                                         <Github className="w-4 h-4 text-green-600" />
                                         <div>
-                                            <div className="font-medium text-sm">{project.repo_full_name}</div>
+                                            <div className="font-medium text-sm flex items-center gap-1">
+                                                <span className="text-muted-foreground">{project.repo_full_name.split('/')[0]}/</span>
+                                                <span style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }} className="dark:!bg-[#7f1d1d33] dark:!text-[#fca5a5]">{project.repo_full_name.split('/')[1]}</span>
+                                            </div>
                                             <div className="flex items-center gap-2 mt-1">
                                                 {project.language && <Badge variant="outline" className="text-xs">{project.language}</Badge>}
                                                 <Badge className="text-xs bg-green-100 text-green-700 border-green-200">Active</Badge>
@@ -892,7 +898,10 @@ export function ReleasePlanView() {
                                             <div className="flex items-center gap-3">
                                                 <Check className="w-5 h-5 text-green-600 shrink-0" />
                                                 <div>
-                                                    <div className="font-medium text-sm">{project.repo_full_name}</div>
+                                                    <div className="font-medium text-sm flex items-center gap-1">
+                                                        <span className="text-muted-foreground">{project.repo_full_name.split('/')[0]}/</span>
+                                                        <span style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }} className="dark:!bg-[#7f1d1d33] dark:!text-[#fca5a5]">{project.repo_full_name.split('/')[1]}</span>
+                                                    </div>
                                                     <div className="flex items-center gap-2 mt-1">
                                                         {project.language && <Badge variant="outline" className="text-xs">{project.language}</Badge>}
                                                         <Badge className="text-xs bg-green-100 text-green-700 border-green-200">completed</Badge>

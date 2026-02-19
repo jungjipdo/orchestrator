@@ -28,8 +28,10 @@ export function SettingsView() {
         username,
         loading,
         repos,
+        tokenExpired,
         connect,
         disconnect,
+        reconnect,
     } = useGitHub()
 
     const [repoPage, setRepoPage] = useState(0)
@@ -77,6 +79,21 @@ export function SettingsView() {
                         </div>
                     ) : isConnected ? (
                         <div className="space-y-4">
+                            {/* 토큰 만료 경고 */}
+                            {tokenExpired && (
+                                <div className="flex items-center justify-between rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
+                                    <p className="text-sm text-destructive font-medium">
+                                        ⚠️ GitHub 토큰이 만료되었습니다
+                                    </p>
+                                    <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        onClick={reconnect}
+                                    >
+                                        재연결
+                                    </Button>
+                                </div>
+                            )}
                             {/* 연결 상태 */}
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
@@ -137,25 +154,25 @@ export function SettingsView() {
                             {/* 레포 목록 — 5개/페이지 */}
                             {repos.length > 0 && (
                                 <div>
-                                    <div className="border rounded-lg divide-y" style={{ minHeight: `${REPOS_PER_PAGE * 45}px` }}>
+                                    <div className="border rounded-lg divide-y">
                                         {pagedRepos.map((repo) => (
-                                            <div key={repo.id} className="flex items-center justify-between px-3 py-2.5 text-sm">
-                                                <span className="text-sm truncate mr-3">
+                                            <div key={repo.id} className="flex items-center justify-between px-4 py-3">
+                                                <span className="text-base truncate mr-3">
                                                     {repo.full_name.includes('/') ? (
                                                         <>
-                                                            <span className="text-muted-foreground">{repo.full_name.split('/')[0]}/</span>
-                                                            <span className="font-medium bg-muted px-1.5 py-0.5 rounded text-foreground font-mono text-xs">{repo.full_name.split('/').slice(1).join('/')}</span>
+                                                            <span className="text-foreground">{repo.full_name.split('/')[0]}/</span>
+                                                            <span className="font-semibold bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded text-red-600 dark:text-red-400 font-mono text-sm">{repo.full_name.split('/').slice(1).join('/')}</span>
                                                         </>
                                                     ) : (
                                                         <span className="font-medium">{repo.full_name}</span>
                                                     )}
                                                 </span>
-                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                <div className="flex items-center gap-2 shrink-0">
                                                     {repo.language && (
-                                                        <span className="text-[10px] px-1.5 py-0.5 bg-muted rounded">{repo.language}</span>
+                                                        <span className="text-xs px-2 py-0.5 bg-muted rounded">{repo.language}</span>
                                                     )}
                                                     {repo.private && (
-                                                        <span className="text-[10px] px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 rounded text-red-600 dark:text-red-400">private</span>
+                                                        <span className="text-xs px-2 py-0.5 bg-red-100 dark:bg-red-900/30 rounded text-red-600 dark:text-red-400">private</span>
                                                     )}
                                                 </div>
                                             </div>

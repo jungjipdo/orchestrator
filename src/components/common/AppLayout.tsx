@@ -6,6 +6,7 @@
 import { useCallback, useState, useEffect, useRef } from 'react'
 import { useSessionLog } from '../../hooks/useSessionLog'
 import { useTheme } from '../../hooks/useTheme'
+import { useAuth } from '../../hooks/useAuth'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import {
@@ -20,6 +21,7 @@ import {
     X,
     Moon,
     Sun,
+    LogOut,
 } from 'lucide-react'
 import { Dashboard } from '../dashboard/Dashboard'
 import { ReleasePlanView } from '../views/ReleasePlanView'
@@ -41,6 +43,7 @@ interface NavItem {
 export function AppLayout() {
     const { activeSession, refresh: refreshSession } = useSessionLog()
     const { toggleTheme, isDark } = useTheme()
+    const { user, signOut } = useAuth()
     const [refreshTrigger, setRefreshTrigger] = useState(0)
     const [activeTab, setActiveTab] = useState<ViewType>('dashboard')
     const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -182,8 +185,28 @@ export function AppLayout() {
                                 0
                             </Badge>
                         </Button>
-                        <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center cursor-pointer">
-                            <span className="text-sm">U</span>
+                        <div className="flex items-center gap-2">
+                            {user?.user_metadata?.avatar_url ? (
+                                <img
+                                    src={user.user_metadata.avatar_url as string}
+                                    alt="avatar"
+                                    className="w-8 h-8 rounded-full"
+                                />
+                            ) : (
+                                <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
+                                    <span className="text-sm">
+                                        {(user?.email?.[0] ?? 'U').toUpperCase()}
+                                    </span>
+                                </div>
+                            )}
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={signOut}
+                                title="로그아웃"
+                            >
+                                <LogOut className="w-4 h-4" />
+                            </Button>
                         </div>
                     </div>
                 </div>
@@ -216,7 +239,7 @@ export function AppLayout() {
                                         setSidebarOpen(false)
                                     }}
                                     className={`
-                    w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors
+                    w-full flex items-center justify-between px-4 py-3 text-base rounded-lg transition-colors
                     ${activeTab === item.id
                                             ? 'bg-primary text-primary-foreground'
                                             : 'hover:bg-muted text-muted-foreground hover:text-foreground'
@@ -224,7 +247,7 @@ export function AppLayout() {
                   `}
                                 >
                                     <div className="flex items-center gap-3">
-                                        <Icon className="w-4 h-4" />
+                                        <Icon className="w-5 h-5" />
                                         <span>{item.label}</span>
                                     </div>
                                     {item.badge && (
@@ -314,8 +337,8 @@ export function AppLayout() {
                                 type="button"
                                 onClick={() => handleNavigate(item.id)}
                                 className={`flex flex-col items-center justify-center gap-0.5 w-full h-full text-[10px] transition-colors ${isActive
-                                        ? 'text-primary font-medium'
-                                        : 'text-muted-foreground'
+                                    ? 'text-primary font-medium'
+                                    : 'text-muted-foreground'
                                     }`}
                             >
                                 <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : ''}`} />

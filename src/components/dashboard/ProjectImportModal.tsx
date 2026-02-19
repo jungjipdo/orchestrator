@@ -160,17 +160,24 @@ export function ProjectImportModal({
                                                     disabled={isImported}
                                                     onClick={() => setSelected(isSelected ? null : repo)}
                                                     className={`w-full text-left px-3 py-2.5 transition-colors ${isImported
-                                                            ? 'bg-muted/50 opacity-50 cursor-not-allowed'
-                                                            : isSelected
-                                                                ? 'bg-primary/5 ring-1 ring-primary/30'
-                                                                : 'hover:bg-muted/50'
+                                                        ? 'bg-muted/50 opacity-50 cursor-not-allowed'
+                                                        : isSelected
+                                                            ? 'bg-primary/5 ring-1 ring-primary/30'
+                                                            : 'hover:bg-muted/50'
                                                         }`}
                                                 >
                                                     <div className="flex items-center justify-between">
                                                         <div className="min-w-0 flex-1 mr-2">
                                                             <div className="flex items-center gap-2">
-                                                                <span className="font-mono text-sm font-medium truncate">
-                                                                    {repo.full_name}
+                                                                <span className="font-mono text-sm truncate">
+                                                                    {repo.full_name.includes('/') ? (
+                                                                        <>
+                                                                            <span className="text-muted-foreground">{repo.full_name.split('/')[0]}/</span>
+                                                                            <span className="font-medium bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded text-red-600 dark:text-red-400 text-xs">{repo.full_name.split('/').slice(1).join('/')}</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <span className="font-medium">{repo.full_name}</span>
+                                                                    )}
                                                                 </span>
                                                                 {isImported && (
                                                                     <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 rounded text-green-700 dark:text-green-400 shrink-0">

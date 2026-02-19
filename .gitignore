@@ -34,3 +34,5 @@ vite.config.ts.timestamp-*
 # git reference
 Aipoweredenterprisereleaseorchestrationplatformcommunity
 openclaw
+.vercel
+.env*.local

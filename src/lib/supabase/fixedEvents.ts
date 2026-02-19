@@ -1,8 +1,5 @@
-// ============================================
-// fixedEvents.ts — fixed_events 테이블 CRUD
-// ============================================
-
 import { supabase } from './client'
+import { requireUserId } from './auth'
 import type {
     FixedEventRow,
     FixedEventInsert,
@@ -46,9 +43,10 @@ export async function getFixedEventById(id: string) {
 // === Create ===
 
 export async function createFixedEvent(event: FixedEventInsert) {
+    const user_id = await requireUserId()
     const { data, error } = await supabase
         .from('fixed_events')
-        .insert(event)
+        .insert({ ...event, user_id })
         .select()
         .single()
 

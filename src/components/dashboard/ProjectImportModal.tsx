@@ -92,7 +92,9 @@ export function ProjectImportModal({
         <Dialog.Root open={open} onOpenChange={handleOpenChange}>
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-                <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border rounded-xl shadow-xl w-[480px] max-h-[80vh] overflow-hidden z-50">
+                <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border rounded-xl shadow-xl w-[480px] max-h-[80vh] overflow-hidden z-50"
+                    style={{ scrollbarWidth: 'none' }}
+                >
                     {/* Header */}
                     <div className="flex items-center justify-between px-5 py-4 border-b">
                         <Dialog.Title className="flex items-center gap-2 text-base font-semibold">
@@ -138,7 +140,7 @@ export function ProjectImportModal({
                                 </div>
 
                                 {/* 레포 리스트 */}
-                                <div className="border rounded-lg divide-y max-h-[340px] overflow-y-auto">
+                                <div className="border rounded-lg divide-y max-h-[340px] overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
                                     {reposLoading ? (
                                         <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
                                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -172,7 +174,7 @@ export function ProjectImportModal({
                                                                 <span className="font-mono text-sm truncate">
                                                                     {repo.full_name.includes('/') ? (
                                                                         <>
-                                                                            <span className="text-muted-foreground">{repo.full_name.split('/')[0]}/</span>
+                                                                            <span className="text-foreground">{repo.full_name.split('/')[0]}/</span>
                                                                             <span className="font-medium bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded text-red-600 dark:text-red-400 text-xs">{repo.full_name.split('/').slice(1).join('/')}</span>
                                                                         </>
                                                                     ) : (
@@ -198,7 +200,7 @@ export function ProjectImportModal({
                                                                 </span>
                                                             )}
                                                             {repo.private && (
-                                                                <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 rounded text-yellow-700 dark:text-yellow-400">
+                                                                <span className="text-[10px] px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 rounded text-red-600 dark:text-red-400">
                                                                     private
                                                                 </span>
                                                             )}

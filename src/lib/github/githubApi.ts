@@ -61,16 +61,15 @@ export async function disconnectGitHub(connectionId: string): Promise<void> {
 }
 
 /**
- * Supabase Auth 세션에서 GitHub provider_token을 꺼내
- * github_connections 테이블에 자동 upsert.
- * (signInWithOAuth 후 호출)
+ * provider_token을 직접 받아서 github_connections 테이블에 upsert.
+ * URL hash에서 추출한 provider_token을 인자로 전달.
  */
-export async function syncGitHubFromSession(): Promise<GitHubConnection | null> {
+export async function syncGitHubWithToken(providerToken: string): Promise<GitHubConnection | null> {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return null
-
-    const providerToken = session.provider_token
-    if (!providerToken) return null
+    if (!session) {
+        console.error('[syncGitHub] Supabase 세션 없음')
+        return null
+    }
 
     // GitHub API로 username 조회
     let username: string | null = null
@@ -82,36 +81,37 @@ export async function syncGitHubFromSession(): Promise<GitHubConnection | null> 
             },
         })
         if (res.ok) {
-            const user = await res.json()
+            const user = await res.json() as { login?: string }
             username = user.login ?? null
+            console.log('[syncGitHub] GitHub username:', username)
+        } else {
+            console.error('[syncGitHub] GitHub /user API 실패:', res.status)
         }
     } catch {
         // username 못 가져와도 연결은 진행
     }
 
     // github_connections에 upsert
+    type GhInsert = { user_id: string; installation_id: number; github_username: string | null; access_token: string; refresh_token: string | null; token_expires_at: string | null }
+    const row: GhInsert = {
+        user_id: session.user.id,
+        installation_id: 0,
+        github_username: username,
+        access_token: providerToken,
+        refresh_token: null,
+        token_expires_at: null,
+    }
     const { data, error } = await supabase
         .from('github_connections')
-        .upsert(
-            {
-                user_id: session.user.id,
-                installation_id: 0,  // OAuth App 방식은 installation 불필요
-                github_username: username,
-                access_token: providerToken,
-                refresh_token: session.provider_refresh_token ?? null,
-                token_expires_at: session.expires_at
-                    ? new Date(session.expires_at * 1000).toISOString()
-                    : null,
-            },
-            { onConflict: 'user_id' },
-        )
+        .upsert(row, { onConflict: 'user_id' })
         .select()
         .single()
 
     if (error) {
-        console.error('GitHub connection sync 실패:', error)
+        console.error('[syncGitHub] DB upsert 실패:', error)
         return null
     }
+    console.log('[syncGitHub] 연결 저장 성공:', data)
     return data as GitHubConnection
 }
 

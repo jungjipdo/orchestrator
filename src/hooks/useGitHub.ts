@@ -9,7 +9,7 @@ import type { GitHubConnection, GitHubRepo } from '../lib/github/githubApi'
 import {
     getGitHubConnection,
     disconnectGitHub as disconnectApi,
-    syncGitHubFromSession,
+    syncGitHubWithToken,
     listRepos,
 } from '../lib/github/githubApi'
 
@@ -78,34 +78,38 @@ export function useGitHub(): UseGitHubReturn {
     }, [refresh])
 
     // ─── OAuth 후 provider_token → github_connections 동기화 ───
-    const syncGitHub = useCallback(async () => {
+    const syncGitHub = useCallback(async (providerToken: string) => {
         try {
-            await syncGitHubFromSession()
+            console.log('[GitHub] provider_token으로 sync 시작')
+            const result = await syncGitHubWithToken(providerToken)
+            console.log('[GitHub] sync 결과:', result ? '성공' : '실패')
         } catch (e) {
-            console.error('GitHub sync 실패:', e)
+            console.error('[GitHub] sync 실패:', e)
         }
     }, [])
 
-    // URL에 auth hash 있으면 (OAuth 리다이렉트 후) → sync + refresh
+    // Supabase auth 세션 변경 구독
+    // ⚡ 핵심: Supabase JS가 hash(#access_token=...&provider_token=gho_...)를 먼저 파싱하고
+    //         onAuthStateChange 콜백에서 session.provider_token으로 전달함.
+    //         useEffect보다 먼저 실행되므로, 여기서 provider_token을 잡아야 함.
     useEffect(() => {
-        const hash = window.location.hash
-        if (hash && (hash.includes('access_token') || hash.includes('refresh_token'))) {
-            // Supabase OAuth 콜백 후 → URL 정리
-            window.history.replaceState({}, '', window.location.pathname)
-            // provider_token → github_connections 자동 저장
-            void syncGitHub().then(() => refresh())
-        }
-    }, [refresh])
-
-    // Supabase auth 세션 변경 구독 → GitHub identity 추가 시 자동 sync
-    useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-            if (event === 'SIGNED_IN') {
-                void syncGitHub().then(() => refresh())
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            console.log('[GitHub] onAuthStateChange:', event, 'provider_token:', session?.provider_token ? '있음' : '없음')
+            if (event === 'SIGNED_IN' && session?.provider_token) {
+                // GitHub OAuth 직후 → provider_token으로 sync
+                void syncGitHub(session.provider_token).then(() => {
+                    // hash 정리
+                    if (window.location.hash) {
+                        window.history.replaceState({}, '', window.location.pathname)
+                    }
+                    void refresh()
+                })
+            } else if (event === 'SIGNED_IN') {
+                void refresh()
             }
         })
         return () => subscription.unsubscribe()
-    }, [refresh])
+    }, [syncGitHub, refresh])
 
     // ─── GitHub 연결 (Supabase Auth OAuth) ───
     const connect = useCallback(() => {

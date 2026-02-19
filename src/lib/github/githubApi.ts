@@ -62,6 +62,14 @@ export async function disconnectGitHub(connectionId: string): Promise<void> {
 
 // ─── GitHub API 호출 ───
 
+/** GitHub 토큰 만료 에러 */
+export class GitHubTokenExpiredError extends Error {
+    constructor() {
+        super('GitHub 토큰이 만료되었습니다. 재연결이 필요합니다.')
+        this.name = 'GitHubTokenExpiredError'
+    }
+}
+
 async function githubFetch<T>(path: string, token: string): Promise<T> {
     const res = await fetch(`https://api.github.com${path}`, {
         headers: {
@@ -73,7 +81,14 @@ async function githubFetch<T>(path: string, token: string): Promise<T> {
 
     if (!res.ok) {
         const body = await res.text()
-        // 프라이빗 레포 접근 권한 부족 시 친절한 안내
+
+        // 401 — 토큰 만료 → 이벤트 dispatch
+        if (res.status === 401) {
+            window.dispatchEvent(new CustomEvent('github:token-expired'))
+            throw new GitHubTokenExpiredError()
+        }
+
+        // 403 — 권한 부족
         if (res.status === 403 && body.includes('Resource not accessible by integration')) {
             throw new Error(
                 `프라이빗 레포 접근 권한이 없습니다. GitHub App 설정 → Repository access에서 이 레포를 추가해주세요.\n(Settings → Applications → Orchestrator → Configure → Repository access)`

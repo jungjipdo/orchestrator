@@ -4,6 +4,7 @@
 // ============================================
 
 import { supabase } from './client'
+import { requireUserId } from './auth'
 
 // ─── Types ───
 
@@ -49,6 +50,7 @@ export async function fetchProjects(): Promise<Project[]> {
 
 /** 프로젝트 생성 (레포 import) */
 export async function createProject(input: CreateProjectInput): Promise<Project> {
+    const user_id = await requireUserId()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
         .from('projects')
@@ -62,6 +64,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
             language: input.language ?? null,
             is_private: input.is_private ?? false,
             status: 'backlog',
+            user_id,
         })
         .select()
         .single()

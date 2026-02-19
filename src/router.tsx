@@ -1,15 +1,19 @@
 // ============================================
 // Orchestrator — Router Configuration
-// React Router v7 — AppLayout이 모든 뷰를 관리
+// React Router v7 — AuthGuard + AppLayout
 // ============================================
 
 import { createBrowserRouter } from 'react-router'
+import { AuthGuard } from './components/auth/AuthGuard'
 import { AppLayout } from './components/common/AppLayout'
 
 export const router = createBrowserRouter([
     {
         path: '/',
-        element: <AppLayout />,
-        // AppLayout이 Dashboard를 직접 렌더 (사이드바 뷰 전환)
+        element: (
+            <AuthGuard>
+                <AppLayout />
+            </AuthGuard>
+        ),
     },
 ])

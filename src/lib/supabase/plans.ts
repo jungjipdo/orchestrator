@@ -3,6 +3,7 @@
 // ============================================
 
 import { supabase } from './client'
+import { requireUserId } from './auth'
 import type {
     PlanRow,
     PlanInsert,
@@ -74,9 +75,10 @@ export async function getPlansWithDueDate(options?: {
 // === Create ===
 
 export async function createPlan(plan: PlanInsert) {
+    const user_id = await requireUserId()
     const { data, error } = await supabase
         .from('plans')
-        .insert(plan)
+        .insert({ ...plan, user_id })
         .select()
         .single()
 

@@ -18,6 +18,7 @@ interface UseGitHubReturn {
     username: string | null
     loading: boolean
     error: string | null
+    tokenExpired: boolean
 
     // 레포
     repos: GitHubRepo[]
@@ -26,6 +27,7 @@ interface UseGitHubReturn {
     // 액션
     connect: () => void
     disconnect: () => Promise<void>
+    reconnect: () => void
     refreshRepos: () => Promise<void>
     refresh: () => Promise<void>
 }
@@ -36,12 +38,14 @@ export function useGitHub(): UseGitHubReturn {
     const [error, setError] = useState<string | null>(null)
     const [repos, setRepos] = useState<GitHubRepo[]>([])
     const [reposLoading, setReposLoading] = useState(false)
+    const [tokenExpired, setTokenExpired] = useState(false)
 
     // ─── 연결 정보 조회 ───
     const refresh = useCallback(async () => {
         try {
             setLoading(true)
             setError(null)
+            setTokenExpired(false)
             const conn = await getGitHubConnection()
             setConnection(conn)
 
@@ -97,6 +101,31 @@ export function useGitHub(): UseGitHubReturn {
         setRepos([])
     }, [connection])
 
+    // ─── 토큰 만료 시 자동 disconnect + 재연결 유도 ───
+    const reconnect = useCallback(() => {
+        // disconnect한 뒤 OAuth 페이지로 이동
+        if (connection) {
+            void disconnectApi(connection.id).then(() => {
+                setConnection(null)
+                setRepos([])
+                setTokenExpired(false)
+                window.location.href = getGitHubInstallUrl()
+            })
+        } else {
+            window.location.href = getGitHubInstallUrl()
+        }
+    }, [connection])
+
+    // ─── github:token-expired 이벤트 구독 ───
+    useEffect(() => {
+        const handler = () => {
+            setTokenExpired(true)
+            setError('GitHub 토큰이 만료되었습니다. 재연결이 필요합니다.')
+        }
+        window.addEventListener('github:token-expired', handler)
+        return () => window.removeEventListener('github:token-expired', handler)
+    }, [])
+
     // ─── 레포 새로고침 ───
     const refreshRepos = useCallback(async () => {
         if (!connection) return
@@ -117,10 +146,12 @@ export function useGitHub(): UseGitHubReturn {
         username: connection?.github_username ?? null,
         loading,
         error,
+        tokenExpired,
         repos,
         reposLoading,
         connect,
         disconnect,
+        reconnect,
         refreshRepos,
         refresh,
     }

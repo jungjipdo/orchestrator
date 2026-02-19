@@ -4,6 +4,7 @@
 // ============================================
 
 import { supabase } from './client'
+import { requireUserId } from './auth'
 import type {
     EventLogRow,
     EventLogInsert,
@@ -42,12 +43,14 @@ export async function logEvent(
     payload: Record<string, unknown> = {},
     actor: 'user' | 'system' | 'ai' = 'system',
 ): Promise<EventLogRow> {
-    const insert: EventLogInsert = {
+    const user_id = await requireUserId()
+    const insert: EventLogInsert & { user_id: string } = {
         event_type: eventType,
         payload,
         triggered_at: new Date().toISOString(),
         applied_at: null,
         actor,
+        user_id,
     }
 
     const { data, error } = await supabase

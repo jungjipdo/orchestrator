@@ -22,13 +22,24 @@ import { useEditorModels } from '../../hooks/useEditorModels'
 import type { AIModel, EditorType } from '../../types/index'
 
 const ALL_MODELS: { key: AIModel; label: string; short: string }[] = [
-    { key: 'claude_opus_4_6', label: 'Claude Opus 4.6', short: 'C-Opus' },
-    { key: 'claude_sonnet_4_6', label: 'Claude Sonnet 4.6', short: 'C-Sonnet' },
-    { key: 'gpt_5_3_codex', label: 'GPT-5.3-Codex', short: 'GPT-5' },
-    { key: 'gpt_5_3_codex_spark', label: 'Codex-Spark', short: 'Spark' },
-    { key: 'gemini_3_pro', label: 'Gemini 3 Pro', short: 'G-Pro' },
-    { key: 'gemini_3_flash', label: 'Gemini 3 Flash', short: 'G-Flash' },
-    { key: 'gemini_3_deep_think', label: 'Gemini Deep Think', short: 'G-Think' },
+    // 최신 → 이전 순서 (왼쪽이 최신)
+    // Anthropic
+    { key: 'claude_opus_4_6', label: 'Claude Opus 4.6', short: 'Opus 4.6' },
+    { key: 'claude_sonnet_4_6', label: 'Claude Sonnet 4.6', short: 'Sonnet 4.6' },
+    { key: 'claude_haiku_4_5', label: 'Claude Haiku 4.5', short: 'Haiku 4.5' },
+    // OpenAI
+    { key: 'gpt_5_3_codex', label: 'GPT-5.3-Codex', short: 'GPT-5.3' },
+    { key: 'gpt_5_3_codex_spark', label: 'GPT-5.3-Codex-Spark', short: 'Spark' },
+    { key: 'gpt_5_2_codex', label: 'GPT-5.2-Codex', short: 'GPT-5.2' },
+    { key: 'gpt_5_2', label: 'GPT-5.2', short: 'GPT-5.2-API' },
+    // Cursor
+    { key: 'cursor_composer', label: 'Cursor Composer', short: 'Composer' },
+    // Google
+    { key: 'gemini_3_pro', label: 'Gemini 3 Pro', short: 'Gem3 Pro' },
+    { key: 'gemini_3_flash', label: 'Gemini 3 Flash', short: 'Gem3 Flash' },
+    { key: 'gemini_3_deep_think', label: 'Gemini 3 Deep Think', short: 'Gem3 Think' },
+    { key: 'gemini_2_5_pro', label: 'Gemini 2.5 Pro', short: 'Gem2.5 Pro' },
+    { key: 'gemini_2_5_flash', label: 'Gemini 2.5 Flash', short: 'Gem2.5 Flash' },
 ]
 
 const ALL_EDITORS: { type: EditorType; label: string }[] = [
@@ -310,13 +321,14 @@ export function SettingsView() {
                     <p className="text-xs text-muted-foreground">에디터별 지원 모델을 설정합니다. AI 분석 시 선택된 에디터의 모델만 사용됩니다.</p>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                    <div className="overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+                        <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
+                        <table className="text-sm no-scrollbar" style={{ minWidth: 'max-content' }}>
                             <thead>
                                 <tr className="border-b">
-                                    <th className="text-left py-2 pr-4 font-medium">Editor</th>
+                                    <th className="text-left py-2 pr-4 font-medium sticky left-0 bg-background z-10 min-w-[100px]">Editor</th>
                                     {ALL_MODELS.map(m => (
-                                        <th key={m.key} className="text-center py-2 px-1 font-medium text-xs min-w-[70px]">
+                                        <th key={m.key} className="text-center py-2 px-2 font-medium text-xs whitespace-nowrap min-w-[80px]">
                                             {m.short}
                                         </th>
                                     ))}
@@ -328,11 +340,11 @@ export function SettingsView() {
                                     const models = entry?.supportedModels ?? []
                                     return (
                                         <tr key={editor.type} className="border-b last:border-0">
-                                            <td className="py-3 pr-4 font-medium text-xs">{editor.label}</td>
+                                            <td className="py-3 pr-4 font-medium text-xs sticky left-0 bg-background z-10">{editor.label}</td>
                                             {ALL_MODELS.map(m => {
                                                 const isChecked = models.includes(m.key)
                                                 return (
-                                                    <td key={m.key} className="py-3 px-1 text-center">
+                                                    <td key={m.key} className="py-3 px-2">
                                                         <button
                                                             type="button"
                                                             onClick={() => handleToggleModel(editor.type, m.key)}

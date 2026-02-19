@@ -69,7 +69,6 @@ export function ReleasePlanView() {
 
     const loading = itemsLoading || plansLoading || projectsLoading
     const [dragOverActive, setDragOverActive] = useState(false)
-    const [draggedItemId, setDraggedItemId] = useState<string | null>(null)
 
     // ─── Section Order (localStorage 저장) ───
     const [sectionOrder, setSectionOrder] = useState<string[]>(() => {
@@ -132,11 +131,9 @@ export function ReleasePlanView() {
     const handleDragStart = useCallback((e: React.DragEvent, id: string, type: 'plan' | 'project') => {
         e.dataTransfer.setData('text/plain', JSON.stringify({ id, type }))
         e.dataTransfer.effectAllowed = 'move'
-        setDraggedItemId(id)
     }, [])
 
     const handleDragEnd = useCallback(() => {
-        setDraggedItemId(null)
         setDragOverActive(false)
     }, [])
 
@@ -149,16 +146,17 @@ export function ReleasePlanView() {
         setDragOverActive(false)
     }, [])
 
-    const handleDrop = useCallback(async (e: React.DragEvent) => {
+    const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault()
         setDragOverActive(false)
         try {
             const raw = e.dataTransfer.getData('text/plain')
             const { id, type } = JSON.parse(raw) as { id: string; type: 'plan' | 'project' }
+            // Optimistic: fire-and-forget (UI는 refresh에서 갱신)
             if (type === 'plan') {
-                await updatePlan(id, { status: 'active' })
+                void updatePlan(id, { status: 'active' })
             } else if (type === 'project') {
-                await updateProjectStatus(id, { status: 'active' })
+                void updateProjectStatus(id, { status: 'active' })
             }
         } catch (err) {
             console.error('Failed to activate:', err)
@@ -346,7 +344,7 @@ export function ReleasePlanView() {
                 {/* Progress */}
                 {dp.sub_tasks.length > 0 && (
                     <div className="flex items-center gap-2">
-                        <Progress value={progress} className="h-2 flex-1" />
+                        <Progress value={progress} className="h-2 flex-1 [&>div]:transition-all [&>div]:duration-500 [&>div]:ease-out" />
                         <span className="text-xs text-muted-foreground">{doneCount}/{dp.sub_tasks.length}</span>
                     </div>
                 )}
@@ -444,7 +442,7 @@ export function ReleasePlanView() {
                                 onDragEnd={handleDragEnd}
                                 onMouseDown={handleCardMouseDown}
                                 onMouseUp={(e) => togglePlanExpand(plan.id, e)}
-                                className={`cursor-pointer hover:shadow-sm transition-all ${draggedItemId === plan.id ? 'opacity-50' : ''}`}
+                                className="cursor-pointer hover:shadow-sm transition-all"
                             >
                                 <CardContent className="p-5 min-h-[140px]">
                                     <div className="flex items-center justify-between">
@@ -529,7 +527,7 @@ export function ReleasePlanView() {
                                 onDragEnd={handleDragEnd}
                                 onMouseDown={handleCardMouseDown}
                                 onMouseUp={(e) => toggleProjectExpand(project.id, e)}
-                                className={`cursor-pointer hover:shadow-sm transition-all ${draggedItemId === project.id ? 'opacity-50' : ''}`}
+                                className="cursor-pointer hover:shadow-sm transition-all"
                             >
                                 <CardContent className="p-4">
                                     <div className="flex items-center justify-between">

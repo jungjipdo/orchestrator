@@ -1,14 +1,16 @@
 // ============================================
 // useGitHub — GitHub 연결 상태 + 레포 조회 훅
+// Supabase Auth OAuth 플로우 사용
 // ============================================
 
 import { useState, useEffect, useCallback } from 'react'
+import { supabase } from '../lib/supabase/client'
 import type { GitHubConnection, GitHubRepo } from '../lib/github/githubApi'
 import {
     getGitHubConnection,
     disconnectGitHub as disconnectApi,
+    syncGitHubFromSession,
     listRepos,
-    getGitHubInstallUrl,
 } from '../lib/github/githubApi'
 
 interface UseGitHubReturn {
@@ -75,22 +77,46 @@ export function useGitHub(): UseGitHubReturn {
         void refresh()
     }, [refresh])
 
-    // URL에 ?github=connected 있으면 자동 refresh
+    // ─── OAuth 후 provider_token → github_connections 동기화 ───
+    const syncGitHub = useCallback(async () => {
+        try {
+            await syncGitHubFromSession()
+        } catch (e) {
+            console.error('GitHub sync 실패:', e)
+        }
+    }, [])
+
+    // URL에 auth hash 있으면 (OAuth 리다이렉트 후) → sync + refresh
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search)
-        if (params.get('github') === 'connected') {
-            // URL 정리
-            const url = new URL(window.location.href)
-            url.searchParams.delete('github')
-            window.history.replaceState({}, '', url.toString())
-            // 데이터 갱신
-            void refresh()
+        const hash = window.location.hash
+        if (hash && (hash.includes('access_token') || hash.includes('refresh_token'))) {
+            // Supabase OAuth 콜백 후 → URL 정리
+            window.history.replaceState({}, '', window.location.pathname)
+            // provider_token → github_connections 자동 저장
+            void syncGitHub().then(() => refresh())
         }
     }, [refresh])
 
-    // ─── GitHub App Install 페이지로 이동 ───
+    // Supabase auth 세션 변경 구독 → GitHub identity 추가 시 자동 sync
+    useEffect(() => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'SIGNED_IN') {
+                void syncGitHub().then(() => refresh())
+            }
+        })
+        return () => subscription.unsubscribe()
+    }, [refresh])
+
+    // ─── GitHub 연결 (Supabase Auth OAuth) ───
     const connect = useCallback(() => {
-        window.location.href = getGitHubInstallUrl()
+        const origin = window.location.origin
+        void supabase.auth.signInWithOAuth({
+            provider: 'github',
+            options: {
+                redirectTo: origin,
+                scopes: 'repo,read:user',
+            },
+        })
     }, [])
 
     // ─── 연결 해제 ───
@@ -101,18 +127,31 @@ export function useGitHub(): UseGitHubReturn {
         setRepos([])
     }, [connection])
 
-    // ─── 토큰 만료 시 자동 disconnect + 재연결 유도 ───
+    // ─── 토큰 만료 시 재연결 ───
     const reconnect = useCallback(() => {
-        // disconnect한 뒤 OAuth 페이지로 이동
         if (connection) {
             void disconnectApi(connection.id).then(() => {
                 setConnection(null)
                 setRepos([])
                 setTokenExpired(false)
-                window.location.href = getGitHubInstallUrl()
+                const origin = window.location.origin
+                void supabase.auth.signInWithOAuth({
+                    provider: 'github',
+                    options: {
+                        redirectTo: origin,
+                        scopes: 'repo,read:user',
+                    },
+                })
             })
         } else {
-            window.location.href = getGitHubInstallUrl()
+            const origin = window.location.origin
+            void supabase.auth.signInWithOAuth({
+                provider: 'github',
+                options: {
+                    redirectTo: origin,
+                    scopes: 'repo,read:user',
+                },
+            })
         }
     }, [connection])
 

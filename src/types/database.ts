@@ -6,12 +6,17 @@
 import type {
     WorkItemStatus,
     SessionResult,
-    SyncMode,
     EnergyLevel,
     Importance,
     PlanType,
     PlanStatus,
     PlanPriority,
+    EditorType,
+    AIModel,
+    AgentStatus,
+    IntegrationLevel,
+    AgentTaskStatus,
+    RunResultOutcome,
 } from './index'
 
 // === Supabase Database 타입 ===
@@ -61,6 +66,35 @@ export interface Database {
                     source_ref?: string | null
                     created_at?: string
                     updated_at?: string
+                }
+                Relationships: []
+            }
+            github_connections: {
+                Row: {
+                    id: string
+                    user_id: string
+                    installation_id: number
+                    github_username: string | null
+                    access_token: string
+                    refresh_token: string | null
+                    token_expires_at: string | null
+                    connected_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    installation_id: number
+                    github_username?: string | null
+                    access_token: string
+                    refresh_token?: string | null
+                    token_expires_at?: string | null
+                }
+                Update: {
+                    github_username?: string | null
+                    access_token?: string
+                    refresh_token?: string | null
+                    token_expires_at?: string | null
                 }
                 Relationships: []
             }
@@ -156,35 +190,129 @@ export interface Database {
                     },
                 ]
             }
-            external_apps: {
+            agent_connections: {
                 Row: {
                     id: string
-                    name: string
-                    role: string
-                    status: 'active' | 'inactive'
-                    deep_link_pattern: string | null
-                    sync_mode: SyncMode
+                    user_id: string
+                    editor_type: EditorType
+                    project_id: string | null
+                    status: AgentStatus
+                    integration_level: IntegrationLevel
+                    last_activity_at: string | null
+                    agent_meta: Record<string, unknown>
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id?: string
+                    editor_type: EditorType
+                    project_id?: string | null
+                    status?: AgentStatus
+                    integration_level?: IntegrationLevel
+                    last_activity_at?: string | null
+                    agent_meta?: Record<string, unknown>
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    editor_type?: EditorType
+                    project_id?: string | null
+                    status?: AgentStatus
+                    integration_level?: IntegrationLevel
+                    last_activity_at?: string | null
+                    agent_meta?: Record<string, unknown>
+                    updated_at?: string
+                }
+                Relationships: []
+            }
+            agent_tasks: {
+                Row: {
+                    id: string
+                    user_id: string
+                    agent_connection_id: string
+                    work_item_id: string | null
+                    instruction: string
+                    recommended_model: AIModel | null
+                    status: AgentTaskStatus
+                    started_at: string | null
+                    ended_at: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id?: string
+                    agent_connection_id: string
+                    work_item_id?: string | null
+                    instruction: string
+                    recommended_model?: AIModel | null
+                    status?: AgentTaskStatus
+                    started_at?: string | null
+                    ended_at?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    agent_connection_id?: string
+                    work_item_id?: string | null
+                    instruction?: string
+                    recommended_model?: AIModel | null
+                    status?: AgentTaskStatus
+                    started_at?: string | null
+                    ended_at?: string | null
+                    updated_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: 'agent_tasks_agent_connection_id_fkey'
+                        columns: ['agent_connection_id']
+                        isOneToOne: false
+                        referencedRelation: 'agent_connections'
+                        referencedColumns: ['id']
+                    },
+                ]
+            }
+            run_results: {
+                Row: {
+                    id: string
+                    agent_task_id: string
+                    outcome: RunResultOutcome
+                    summary: string | null
+                    artifacts: string[]
+                    duration_ms: number | null
+                    error_message: string | null
                     created_at: string
                 }
                 Insert: {
                     id?: string
-                    name: string
-                    role: string
-                    status?: 'active' | 'inactive'
-                    deep_link_pattern?: string | null
-                    sync_mode?: SyncMode
+                    agent_task_id: string
+                    outcome: RunResultOutcome
+                    summary?: string | null
+                    artifacts?: string[]
+                    duration_ms?: number | null
+                    error_message?: string | null
                     created_at?: string
                 }
                 Update: {
                     id?: string
-                    name?: string
-                    role?: string
-                    status?: 'active' | 'inactive'
-                    deep_link_pattern?: string | null
-                    sync_mode?: SyncMode
-                    created_at?: string
+                    outcome?: RunResultOutcome
+                    summary?: string | null
+                    artifacts?: string[]
+                    duration_ms?: number | null
+                    error_message?: string | null
                 }
-                Relationships: []
+                Relationships: [
+                    {
+                        foreignKeyName: 'run_results_agent_task_id_fkey'
+                        columns: ['agent_task_id']
+                        isOneToOne: false
+                        referencedRelation: 'agent_tasks'
+                        referencedColumns: ['id']
+                    },
+                ]
             }
             event_logs: {
                 Row: {
@@ -255,6 +383,59 @@ export interface Database {
                 }
                 Relationships: []
             }
+            model_scores: {
+                Row: {
+                    id: string
+                    user_id: string
+                    model_key: string
+                    coding: number
+                    analysis: number
+                    documentation: number
+                    speed: number
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    model_key: string
+                    coding?: number
+                    analysis?: number
+                    documentation?: number
+                    speed?: number
+                    updated_at?: string
+                }
+                Update: {
+                    model_key?: string
+                    coding?: number
+                    analysis?: number
+                    documentation?: number
+                    speed?: number
+                    updated_at?: string
+                }
+                Relationships: []
+            }
+            editor_models: {
+                Row: {
+                    id: string
+                    user_id: string
+                    editor_type: string
+                    supported_models: string[]
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    editor_type: string
+                    supported_models: string[]
+                    updated_at?: string
+                }
+                Update: {
+                    editor_type?: string
+                    supported_models?: string[]
+                    updated_at?: string
+                }
+                Relationships: []
+            }
         }
         Views: Record<string, never>
         Functions: Record<string, never>
@@ -281,8 +462,17 @@ export type SessionLogRow = Database['public']['Tables']['session_logs']['Row']
 export type SessionLogInsert = Database['public']['Tables']['session_logs']['Insert']
 export type SessionLogUpdate = Database['public']['Tables']['session_logs']['Update']
 
-export type ExternalAppRow = Database['public']['Tables']['external_apps']['Row']
-export type ExternalAppInsert = Database['public']['Tables']['external_apps']['Insert']
+export type AgentConnectionRow = Database['public']['Tables']['agent_connections']['Row']
+export type AgentConnectionInsert = Database['public']['Tables']['agent_connections']['Insert']
+export type AgentConnectionUpdate = Database['public']['Tables']['agent_connections']['Update']
+
+export type AgentTaskRow = Database['public']['Tables']['agent_tasks']['Row']
+export type AgentTaskInsert = Database['public']['Tables']['agent_tasks']['Insert']
+export type AgentTaskUpdate = Database['public']['Tables']['agent_tasks']['Update']
+
+export type RunResultRow = Database['public']['Tables']['run_results']['Row']
+export type RunResultInsert = Database['public']['Tables']['run_results']['Insert']
+export type RunResultUpdate = Database['public']['Tables']['run_results']['Update']
 
 export type EventLogRow = Database['public']['Tables']['event_logs']['Row']
 export type EventLogInsert = Database['public']['Tables']['event_logs']['Insert']
@@ -290,3 +480,11 @@ export type EventLogInsert = Database['public']['Tables']['event_logs']['Insert'
 export type PlanRow = Database['public']['Tables']['plans']['Row']
 export type PlanInsert = Database['public']['Tables']['plans']['Insert']
 export type PlanUpdate = Database['public']['Tables']['plans']['Update']
+
+export type ModelScoreRow = Database['public']['Tables']['model_scores']['Row']
+export type ModelScoreInsert = Database['public']['Tables']['model_scores']['Insert']
+export type ModelScoreUpdate = Database['public']['Tables']['model_scores']['Update']
+
+export type EditorModelRow = Database['public']['Tables']['editor_models']['Row']
+export type EditorModelInsert = Database['public']['Tables']['editor_models']['Insert']
+export type EditorModelUpdate = Database['public']['Tables']['editor_models']['Update']

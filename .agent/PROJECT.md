@@ -1,23 +1,39 @@
 # PROJECT CONTEXT
 
-> "여러 프로젝트와 외부 앱 흐름을 하나의 워크플로우로 관리하고, AI가 고정된 규칙 안에서 실행을 보조하는 개인 컨트롤 타워"
+> "AI 에이전트들이 날뛸 수 있는 몸통을 만들어주는 멀티-에이전트 컨트롤 타워"
+> — 작업 관리에 특화된 AI 오케스트레이션 SaaS
 
-- 메인 디바이스: MacBook / 서브: iPhone
+- 타겟: Vibe Coder / 1인 개발자 → 소규모 팀
+- 핵심 차별점: AI 에이전트 작업의 **시각화** + **세션 관리 위탁**
 - 배포 방식: Web → PWA → (추후) App Store
+- 참고 모델: OpenClaw (멀티 에이전트 연결) — 단, 작업 관리 + 시각화에 특화
 
 ## Tech Stack
 - **Framework**: Vite 7 + React 19 (SPA)
 - **Language**: TypeScript 5.9 (strict mode)
-- **Styling**: Vanilla CSS + CSS Variables (보라톤 디자인 토큰)
+- **Styling**: Tailwind CSS + shadcn/ui (CSS Variables 기반)
 - **Database**: Supabase (DB + Auth + Realtime)
 - **AI**: Gemini API + Codex Bridge (LLMAdapter 패턴)
-- **Router**: React Router v7
+- **Router**: SPA 내부 상태 기반 (activeTab state)
 - **Package Manager**: npm
 
 ## Architecture
 - Pattern: Feature-based modular + Event-driven workflow
 - 이벤트 파이프라인: `trigger → classify → propose/auto → user confirm(optional) → apply → log`
-- AI 역할: 룰 기반 보조자 (의사결정 권한은 사용자)
+- AI 역할: **에이전트 오케스트레이터** — 사용자의 AI 에이전트들을 연결하고 작업 흐름을 관리
+
+### 제품 포지셔닝
+
+```
+[기존 PM 도구]  → Notion, Linear, Jira (인간 중심 작업 관리)
+[기존 AI 도구]  → OpenClaw, Zapier AI (에이전트 연결, 시각화 부족)
+[우리 제품]     → AI 에이전트 작업의 시각화 + 세션 관리 (빈 시장)
+```
+
+### 핵심 가치 제안
+1. **에이전트가 날뛸 수 있는 몸통**: AI API들을 연결해서 작업할 수 있는 환경 제공
+2. **시각화 차별점**: 다른 도구들이 따라올 수 없는 작업 흐름 시각화
+3. **세션 관리 위탁**: 에이전트의 작업 세션을 우리가 관리 → 전환 비용 + 데이터 락인
 
 ### 상태 모델
 
@@ -34,23 +50,17 @@ backlog → candidate → active → done | blocked | deferred
 | `blocked` | 외부 요인으로 막힘 |
 | `deferred` | 기한/우선순위 조정으로 뒤로 미룸 |
 
-### 실행 슬롯 계산
-- 입력: 오늘 가용 시간(분), 고정 일정 점유 시간(분), 긴급도/기한/예상 소요
-- 출력: 권장 active 작업 수, 실행 순서, 블록 길이(25/50/90분)
+### 에이전트 오케스트레이션
 
-### 코딩 오케스트레이션
-
-> 본 앱은 코딩을 직접 수행하지 않음. **상위 맥락에서 통합 관리**에 집중.
+> 본 앱은 코딩을 직접 수행하지 않음. **에이전트 연결 + 작업 시각화 + 세션 관리**에 집중.
 
 | 역할 | 담당 |
 |------|------|
-| 코딩 계획 수립 + 실행 | Antigravity(main) + Codex(sub) |
-| 프로젝트 간 진행 상태 관리 | **Orchestrator** |
+| 코딩 실행 | 사용자의 AI 에이전트들 (Cursor, Codex, Claude Code 등) |
+| 에이전트 연결 관리 | **Orchestrator** |
+| 작업 흐름 시각화 | **Orchestrator** |
+| 세션/진행 상태 추적 | **Orchestrator** |
 | 완료/차단 이벤트 기록 | **Orchestrator** |
-| 마일스톤 리스크 추적 | **Orchestrator** |
-
-- 이벤트 수집: 각 프로젝트에서 발생한 완료/차단/지연 이벤트를 `event_logs`에 기록
-- 추후 확장: Claude Code 등 다른 코딩 도구 연동 가능
 
 ---
 
@@ -72,74 +82,47 @@ Main: `#896EA6`
 | 7 | `#9881B1` | Dark Accent-Strong |
 | 8 | `#B2A0C5` | Light Surface-2 / Light Border |
 | 9 | `#CCC0D8` | Light Surface / Dark Text-Secondary |
-| 10 (최밝음) | `#FFFFFF` | Light BG /
-
-### CSS Variables — Light Theme
-
-```css
-:root[data-theme="light"] {
-  --bg: #FFFFFF;
-  --surface: #CCC0D8;
-  --surface-2: #B2A0C5;
-  --text-primary: #33273F;
-  --text-secondary: #4C3A5F;
-  --accent: #896EA6;
-  --accent-strong: #7E619E;
-  --border: #B2A0C5;
-}
-```
-
-### CSS Variables — Dark Theme
-
-```css
-:root[data-theme="dark"] {
-  --bg: #000000;
-  --surface: #191320;
-  --surface-2: #33273F;
-  --text-primary: #E5DFEC;
-  --text-secondary: #CCC0D8;
-  --accent: #896EA6;
-  --accent-strong: #9881B1;
-  --border: #4C3A5F;
-}
-```
+| 10 (최밝음) | `#FFFFFF` | Light BG |
 
 ### UI 원칙
 - 같은 색상군의 톤만 사용 (외부 색상 금지)
 - 테마 전환 시 컴포넌트 구조 유지, CSS Variables만 교체
 - 강조: `--accent`, 경고: `--accent-strong` + 아이콘 조합
+- **시각화 품질이 제품의 핵심 경쟁력** — 작업 흐름의 시각적 표현에 투자
 
 ---
 
-## AI 비서 설계
+## AI 에이전트 시스템
 
-### 명령 인터페이스
+### 에이전트 연결 (Agent Connection)
 
-| 명령 | 설명 |
-|------|------|
-| `/capture [text]` | 작업 빠른 수집 |
-| `/clarify [task_id]` | 작업 구조화 (next_action, estimate, DoD) |
-| `/plan [available_time]` | 일정 편성 (고정 일정 + 마감 반영) |
-| `/focus [task_id]` | 작업 시작 (세션 로그 생성) |
-| `/close [task_id]` | 작업 종료 (done_log 필수) |
-| `/review [daily\|weekly\|monthly]` | 회고 리포트 |
-| `/reschedule [reason]` | 일정 재배치 |
+사용자가 자신의 AI 에이전트를 등록하고 관리하는 시스템:
 
-### AI 의사결정 규칙 (필수)
-1. `next_action` 없는 task는 `active`로 올리지 않는다
-2. 일정 충돌 감지 시 자동 변경하지 않고 **"제안"만** 생성
-3. `blocked` 발생 시 대체 15~30분 작업을 1개 이상 제안
-4. `/close` 실행 시 `done_log` 누락이면 완료를 거부
-5. 리포트는 항상 `원인 → 제안 → 예상효과` 형태
+```ts
+interface AgentConnection {
+  name: string              // "Cursor", "Claude Code", "Codex"
+  agent_type: AgentType     // 'cursor' | 'claude_code' | 'codex' | 'windsurf' | 'custom'
+  project_id: string        // 어떤 프로젝트에 연결?
+  status: 'connected' | 'disconnected' | 'error'
+  last_sync_at: string
+  config: Record<string, unknown>
+}
+```
 
-### AI 제안 출력 규격
-- 옵션 A/B/C 형태 제시
-- 각 옵션: 시간 비용, 리스크, 기대효과 표시
-- 마지막 줄에 "권장안" 명시
+### 에이전트 활동 추적
 
----
+기존 `EventLog` 구조를 활용한 에이전트 활동 피드:
+- `event_type`: `'agent.task_started'`, `'agent.commit_pushed'`, `'agent.error'`
+- `actor`: `'ai'`일 때 어떤 에이전트인지 `payload`에 기록
+- `payload`: `{ agent: 'cursor', project: 'orchestrator', details: '...' }`
 
-## LLM 어댑터
+### AI 의사결정 규칙
+1. 에이전트 상태 변경 시 자동 반영하지 않고 **제안만** 생성
+2. `blocked` 발생 시 대체 작업 제안
+3. 에이전트 간 작업 충돌 감지 → 알림
+4. 리포트 형식: `원인 → 제안 → 예상효과`
+
+### LLM 어댑터
 
 ```ts
 interface LLMAdapter {
@@ -148,7 +131,6 @@ interface LLMAdapter {
 }
 ```
 
-### 라우팅 정책
 | 유형 | 모델 | 이유 |
 |------|------|------|
 | 빠른 분류/요약 | `gemini_api` | 속도 |
@@ -157,7 +139,7 @@ interface LLMAdapter {
 
 ---
 
-## Database (Supabase — 공유 프로젝트)
+## Database (Supabase)
 
 > ⚠️ **Planfit(calendar)과 동일한 Supabase 프로젝트를 공유**합니다.
 > 테이블 이름 충돌에 주의하세요.
@@ -180,11 +162,16 @@ interface LLMAdapter {
 | 테이블 | 설명 |
 |--------|------|
 | `work_items` | 작업 (상태: backlog→candidate→active→done/blocked/deferred) |
+| `plans` | Plan 시스템 (task/event/fixed/project) |
 | `fixed_events` | 고정 일정 (Hard Event) |
 | `project_deadlines` | 프로젝트 마감 + 리스크 점수 |
-| `session_logs` | 작업 세션 기록 (focus→close) |
-| `external_apps` | 외부 앱 연동 정보 |
-| `event_logs` | 이벤트 파이프라인 로그 |
+| `session_logs` | 에이전트 작업 세션 기록 |
+| `event_logs` | 이벤트 파이프라인 로그 (에이전트 활동 포함) |
+
+### 제품화 시 추가 필요
+- 모든 테이블에 `user_id` 컬럼 + RLS 정책
+- `agent_connections` 테이블 신설
+- GitHub OAuth 기반 인증
 
 ### 마이그레이션 관리
 - 경로: `supabase/migrations/NNN_description.sql`
@@ -193,77 +180,13 @@ interface LLMAdapter {
 
 ---
 
-## 앱 생태계 연동
-
-| 앱 | 역할 |
-|----|------|
-| **Re-mind** | 뉴스 읽기, 신기술 학습, 레퍼런스 탐색 |
-| **Planfit** | 기록장, 일기장 |
-| **자금관리** | 크립토 세무 도구로 분리 → 상태/이벤트만 반영 |
-| **캘린더** | 별도 앱 분리 X → Orchestrator 화면에 통합 표시 |
-
-### 외부 앱 사용 보조
-- 앱별 역할에 맞는 **사용 가이드/워크플로우 제안** 제공
-- 반복 작업의 **효율화 포인트** 식별 + 제시
-- 앱 사용법 학습 데이터를 AI 비서가 참조하여 맥락 기반 보조
-
-### 자동화 정책
-| 자동 허용 | 승인 필요 |
-|-----------|----------|
-| 읽기 전용 동기화 | 일정 변경 |
-| 메타데이터 갱신 | task 상태 강제 변경 |
-| 리포트 생성 | 외부 앱 쓰기 동작 |
-
----
-
-## 운영 워크플로우
-
-### Daily
-- 환경 점검 (homebrew, 파일, 개발도구 상태)
-- `/plan`으로 당일 실행 슬롯 계산
-- `focus → close` 실행 루프 반복
-- 로그/성과 기록
-
-### Weekly
-- 주간 목표/마일스톤 재정렬
-- 프로젝트별 진행률과 차단 요인 점검
-- 다음 주 우선순위 확정
-
-### Monthly
-- 월간 성과/패턴 분석
-- 반복 지연 원인 파악
-- 운영 규칙 개선안 반영
-
-### 상시 이벤트
-- Re-mind 기반 정보 수집/필터링
-- 채용 정보 피드 수집/정리 (필요 시)
-- 신규 약속/긴급 일정 발생 시 재배치 제안
-
-### 이벤트 유형 정의
-| 이벤트 | 트리거 | 자동/제안 |
-|--------|--------|----------|
-| `schedule.new` | 신규 일정 등록 | 충돌 감지 → 제안 |
-| `schedule.urgent` | 긴급 일정 발생 | 재배치 제안 |
-| `task.status_change` | 상태 전이 | 자동 기록 |
-| `task.blocked` | blocked 발생 | 대체 작업 제안 |
-| `coding.milestone_done` | 코딩 마일스톤 완료 | 자동 기록 |
-| `review.daily` | 하루 종료 | 리포트 생성 제안 |
-| `info.collected` | Re-mind 수집 완료 | 알림 |
-
----
-
 ## 데이터 레이어 전략
 
 | 계층 | 저장소 | 내용 |
 |------|--------|------|
-| **Local** | localStorage / IndexedDB | 최근 명령 히스토리, draft 입력, 오프라인 큐 |
-| **Server** | Supabase | 작업/세션/이벤트/외부 앱 연결 상태 |
+| **Local** | localStorage / IndexedDB | draft 입력, 오프라인 큐 |
+| **Server** | Supabase | 작업/세션/이벤트/에이전트 연결 상태 |
 | **Shared** | Supabase (공유 테이블) | 앱 간 공용 메타데이터 (사용자 프로필 등) |
-
-### 패턴 분석/피드백
-- `session_logs` + `event_logs` 기반으로 실행 패턴 분석
-- Daily/Weekly/Monthly 주기로 자동 피드백 리포트 생성
-- 반복 지연/차단 패턴 → 운영 규칙 개선안 제시
 
 ---
 
@@ -279,20 +202,24 @@ interface LLMAdapter {
 ```
 src/
 ├── components/        # UI 컴포넌트
+│   ├── auth/          # 인증 관련
 │   ├── common/        # 공통 위젯
 │   ├── dashboard/     # 대시보드 관련
-│   └── command/       # 명령 인터페이스
+│   ├── github/        # GitHub 연동
+│   ├── ui/            # shadcn/ui 컴포넌트
+│   └── views/         # 탭 뷰 컴포넌트
 ├── features/          # 비즈니스 로직 모듈
-│   ├── scheduler/     # 스케줄링 엔진
-│   ├── workflow/      # 워크플로우 관리
+│   ├── scheduler/     # 스케줄링 엔진 (리팩토링 예정)
+│   ├── workflow/      # 워크플로우 관리 (리팩토링 예정)
 │   ├── llm/           # LLM 어댑터 (Gemini/Codex)
-│   └── integration/   # 외부 앱 연동
+│   └── integration/   # 에이전트 연동
 ├── hooks/             # 커스텀 React hooks
 ├── lib/               # 공유 유틸리티
 │   ├── supabase/      # Supabase 클라이언트
-│   └── events/        # 이벤트 파이프라인
+│   ├── github/        # GitHub API
+│   ├── events/        # 이벤트 파이프라인
+│   └── utils/         # 범용 유틸리티
 ├── types/             # TypeScript 인터페이스
-├── styles/            # 글로벌 스타일 + 디자인 토큰
 └── App.tsx            # 루트 컴포넌트
 ```
 
@@ -322,9 +249,17 @@ src/
 - 의미 있는 단위로 커밋/푸시
 
 ## Known Issues
-- (초기 설정 단계 — 아직 없음)
+- (없음 — 레거시 코드 정리 완료)
+
+## 향후 활용 보존 파일
+> 아래 파일들은 현재 UI에서 사용하지 않지만, 에이전트 오케스트레이션 구현 시 재활용 예정.
+
+| 파일 | 기능 | 활용 계획 |
+|------|------|-----------|
+| `features/scheduler/conflictDetector.ts` | 일정 겹침 감지 (FixedEvent 간, Slot 간 충돌 검사) | 에이전트 간 작업 충돌 감지로 확장 |
+| `features/scheduler/priorityEngine.ts` | 작업 우선순위 점수 계산 (기한, 에너지, 중요도 기반) | 에이전트 작업 자동 정렬에 활용 |
+| `features/workflow/stateMachine.ts` | 상태 전이 검증 (backlog→active 등 규칙 + 필수값 체크) | 핵심 비즈니스 로직, 그대로 사용 |
 
 ---
 *This file is referenced by the agent at session start.*
 *Commands section is linked to `/verify` workflow.*
-*상세 스펙 원본: `참조/project_start.md`*

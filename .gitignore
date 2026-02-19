@@ -36,3 +36,5 @@ Aipoweredenterprisereleaseorchestrationplatformcommunity
 openclaw
 .vercel
 .env*.local
+
+.orchestrator/session.json

@@ -15,7 +15,7 @@ export type WorkItemStatus =
 
 export type SessionResult = 'done' | 'partial' | 'blocked'
 
-export type SyncMode = 'read_only' | 'manual' | 'approved_write'
+
 
 export type EnergyLevel = 'high' | 'medium' | 'low'
 
@@ -66,15 +66,77 @@ export interface SessionLog {
     created_at: string
 }
 
-export interface ExternalApp {
+// === 오케스트레이션: 에디터(도구) + AI 모델(두뇌) ===
+
+// 에디터 — 사용자가 쓰는 개발 도구 (타일 토글로 등록)
+export type EditorType =
+    | 'cursor' | 'claude_code' | 'codex' | 'antigravity'
+    | 'vscode' | 'windsurf' | 'zed' | 'terminal'
+
+// AI 모델 — 2026.02.19 기준 최신 (오케스트레이터 추천용)
+export type AIModel =
+    | 'claude_opus_4_6' | 'claude_sonnet_4_6'
+    | 'gpt_5_3_codex' | 'gpt_5_3_codex_spark'
+    | 'gemini_3_pro' | 'gemini_3_flash' | 'gemini_3_deep_think'
+
+export type AgentStatus = 'registered' | 'active' | 'inactive' | 'error'
+
+export type IntegrationLevel = 'L1' | 'L2' | 'L3'
+
+export interface AgentConnection {
     id: string
-    name: string
-    role: string
-    status: 'active' | 'inactive'
-    deep_link_pattern: string | null
-    sync_mode: SyncMode
+    user_id: string
+    editor_type: EditorType
+    project_id: string | null
+    status: AgentStatus
+    integration_level: IntegrationLevel
+    last_activity_at: string | null
+    agent_meta: Record<string, unknown>
+    created_at: string
+    updated_at: string
+}
+
+// --- 오케스트레이션 단위 객체 ---
+
+export type AgentTaskStatus =
+    | 'pending' | 'running' | 'completed'
+    | 'failed' | 'cancelled'
+
+export interface AgentTask {
+    id: string
+    user_id: string
+    agent_connection_id: string
+    work_item_id: string | null
+    instruction: string
+    recommended_model: AIModel | null
+    status: AgentTaskStatus
+    started_at: string | null
+    ended_at: string | null
+    created_at: string
+    updated_at: string
+}
+
+export type RunResultOutcome = 'success' | 'failure' | 'partial' | 'timeout'
+
+export interface RunResult {
+    id: string
+    agent_task_id: string
+    outcome: RunResultOutcome
+    summary: string | null
+    artifacts: string[]
+    duration_ms: number | null
+    error_message: string | null
     created_at: string
 }
+
+// --- 성공지표 이벤트 규격 ---
+
+export type AgentEventType =
+    | 'agent.registered' | 'agent.removed'
+    | 'agent.session_started' | 'agent.session_ended'
+    | 'agent.task_completed' | 'agent.task_failed'
+    | 'agent.commit_pushed' | 'agent.pr_opened'
+    | 'agent.blocked' | 'agent.unblocked'
 
 export interface EventLog {
     id: string
@@ -86,7 +148,7 @@ export interface EventLog {
     created_at: string
 }
 
-// === 에러 코드 표준 (Contract C3) ===
+// === 에러 코드 표준 ===
 
 export type ErrorCode =
     | 'MISSING_NEXT_ACTION'
@@ -95,32 +157,6 @@ export type ErrorCode =
     | 'NO_ACTIVE_SESSION'
     | 'ACTIVE_SESSION_EXISTS'
     | 'SCHEDULE_CONFLICT'
-    | 'INVALID_COMMAND_ARGS'
-
-// === 명령 시스템 (6.2절) ===
-
-export type CommandType =
-    | 'capture'
-    | 'clarify'
-    | 'plan'
-    | 'focus'
-    | 'close'
-    | 'review'
-    | 'reschedule'
-
-export interface Command {
-    id: string                 // command_id (UUID, idempotency)
-    type: CommandType
-    args: string[]
-    raw: string
-}
-
-export interface CommandResult {
-    success: boolean
-    message: string
-    errorCode?: ErrorCode
-    data?: unknown
-}
 
 // === LLM 어댑터 (7절) ===
 
@@ -140,30 +176,7 @@ export interface LLMAdapter {
     run(command: string, payload: unknown): Promise<LLMResult>
 }
 
-// === 스케줄러 (4.3절) ===
 
-export type BlockMinutes = 25 | 50 | 90
-
-export interface ScheduleSlot {
-    work_item_id: string
-    start: string              // ISO 8601
-    end: string                // ISO 8601
-    block_minutes: BlockMinutes
-}
-
-export interface ScheduleInput {
-    available_minutes: number
-    fixed_events: FixedEvent[]
-    candidates: WorkItem[]
-    deadlines: ProjectDeadline[]   // C6: 스케줄러 결정에 필수
-}
-
-export interface SchedulePlan {
-    slots: ScheduleSlot[]
-    available_minutes: number
-    used_minutes: number
-    recommended_active_count: number
-}
 
 // === 이벤트 파이프라인 (10절) ===
 

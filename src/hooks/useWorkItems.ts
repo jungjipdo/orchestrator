@@ -1,17 +1,18 @@
 // ============================================
-// useWorkItems — 작업 목록 조회 (읽기 전용)
+// useWorkItems — 작업 목록 조회 + 생성
 // ============================================
 
 import { useCallback, useEffect, useState } from 'react'
-import type { WorkItemRow } from '../types/database'
+import type { WorkItemRow, WorkItemInsert } from '../types/database'
 import type { WorkItemStatus } from '../types/index'
-import { getWorkItems } from '../lib/supabase/workItems'
+import { getWorkItems, createWorkItem } from '../lib/supabase/workItems'
 
 interface UseWorkItemsReturn {
     items: WorkItemRow[]
     loading: boolean
     error: string | null
     refresh: () => Promise<void>
+    addItem: (input: WorkItemInsert) => Promise<WorkItemRow>
 }
 
 export function useWorkItems(filter?: { status?: WorkItemStatus }): UseWorkItemsReturn {
@@ -38,5 +39,12 @@ export function useWorkItems(filter?: { status?: WorkItemStatus }): UseWorkItems
         void refresh()
     }, [refresh])
 
-    return { items, loading, error, refresh }
+    const addItem = useCallback(async (input: WorkItemInsert) => {
+        const created = await createWorkItem(input)
+        setItems(prev => [created, ...prev])
+        return created
+    }, [])
+
+    return { items, loading, error, refresh, addItem }
 }
+

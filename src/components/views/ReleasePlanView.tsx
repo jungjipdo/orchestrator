@@ -203,9 +203,10 @@ export function ReleasePlanView() {
             const totalCount = items.length
             const criticalCount = items.filter(i => i.status === 'blocked').length
             const latest = items.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0]
+            const project = projectId ? projects.find(p => p.id === projectId) : null
             return {
                 projectId,
-                projectName: projectId ?? 'Unassigned',
+                projectName: project ? project.repo_name : (projectId ? 'Unknown' : 'Backlog'),
                 items,
                 doneCount,
                 totalCount,
@@ -214,7 +215,7 @@ export function ReleasePlanView() {
                 latestUpdate: latest ? new Date(latest.updated_at).toLocaleDateString() : '-',
             }
         })
-    }, [allItems])
+    }, [allItems, projects])
 
     // ─── Plans 분리 ───
     const activePlans = useMemo(() => plans.filter(p => p.status === 'active'), [plans])

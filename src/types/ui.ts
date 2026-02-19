@@ -2,7 +2,7 @@
 // UI Types
 // ============================================
 
-import type { CommandType, ErrorCode } from './index'
+import type { ErrorCode } from './index'
 import type { SessionLogRow } from './database'
 
 export interface OutletContextType {
@@ -16,13 +16,6 @@ export interface CommandResultView {
     message: string
     errorCode?: ErrorCode
     autoDismissMs?: number | null
-}
-
-export interface CommandSuggestion {
-    command: `/${CommandType}`
-    description: string
-    argHints: string
-    example: string
 }
 
 export interface AISuggestionOption {

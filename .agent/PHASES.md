@@ -1,72 +1,66 @@
 # DEVELOPMENT PHASES
 
-> Orchestrator 프로젝트 개발 로드맵 (project_start.md 14절 기반)
+> Orchestrator — 멀티-에이전트 컨트롤 타워 SaaS 로드맵
 
 ---
 
-## Phase 1 (v0.1): Core — 메인 대시보드 + 명령 루프
+## Phase 1: Core Product — 멀티유저 SaaS 전환
 
-> 최소 실행 가능한 개인 컨트롤 타워
+> 1명의 외부 Vibe Coder가 가입해서 프로젝트를 만들고 작업을 관리할 수 있는 상태
 
 ### 기능 범위
-- 메인페이지 단일 화면 (대시보드)
-- 명령 루프 (`/capture`, `/plan`, `/focus`, `/close`, `/review`)
-- 이벤트 로그 시스템
-- 고정 일정(Hard Event) + 기한 반영 스케줄링
-- 상태 모델: `backlog → candidate → active → done | blocked | deferred`
-- 보라톤 디자인 시스템 (Dark/Light)
+- Auth 시스템 (GitHub OAuth)
+- 모든 테이블에 `user_id` + RLS
+- 랜딩 페이지 (왜 이 도구가 필요한지 → 가입)
+- 온보딩 플로우 (프로젝트 생성 → GitHub 연결 → 첫 작업 생성)
+- 레거시 코드 정리 (명령 시스템, 스케줄 슬롯 제거)
+- 보라톤 디자인 시스템 (Dark/Light) 유지
 
 ### 개발 프로세스
 
 #### Design
-- [ ] 요구사항 분석 (project_start.md)
-- [ ] 인터페이스/타입 정의 (types/)
-- [ ] `task.md` + `implementation_plan.md` 작성
-- [ ] 사용자 승인
+- [ ] 제품화 요구사항 분석
+- [ ] Auth + 멀티테넌시 스키마 설계
+- [ ] 랜딩 페이지 + 온보딩 UX 설계
+- [ ] `implementation_plan.md` 작성 → 승인
 
 #### Implementation
-- [ ] 프로젝트 scaffolding (Vite + React + TS)
-- [ ] 디자인 토큰 + CSS Variables
-- [ ] 대시보드 레이아웃
-- [ ] 명령 인터페이스
-- [ ] 스케줄링 엔진
-- [ ] Supabase 스키마 + 연결
-- [ ] 이벤트 로그
+- [ ] 레거시 코드 제거 (scheduler/slot, command 시스템)
+- [ ] Auth 시스템 (GitHub OAuth + Supabase Auth)
+- [ ] 테이블 `user_id` 추가 + RLS 정책
+- [ ] 랜딩 페이지
+- [ ] 온보딩 플로우
 
 #### Testing
 - [ ] 타입 체크 (tsc --noEmit)
 - [ ] 빌드 성공 (vite build)
-- [ ] 브라우저 테스팅
+- [ ] 멀티유저 시나리오 브라우저 테스팅
 
 ---
 
-## Phase 2 (v0.2): Mobile — PWA + 앱 연동
+## Phase 2: Differentiation — 에이전트 오케스트레이션
+
+> Cursor/Codex 작업 흐름을 Orchestrator에서 추적할 수 있는 상태
 
 ### 기능 범위
-- PWA 안정화 (vite-plugin-pwa)
-- iPhone 간략 UI (동일 기능, 축소 표시)
-- Re-mind / Planfit 앱 연동 학습 워크플로우
-- AI 제안 UX (옵션 A/B/C)
+- AgentConnection 시스템 (에이전트 등록 + 상태 추적)
+- 에이전트 활동 피드 (Git commit/PR 기반 자동 추적)
+- 프로젝트 간 작업 전환 대시보드
+- 에이전트 세션 관리 (작업 시작/종료/차단 추적)
+- 작업 흐름 시각화 강화
 
 ---
 
-## Phase 3 (v0.3): Intelligence — 멀티모델 + 리포트
+## Phase 3: Network Effect — 공유 생태계
+
+> 워크플로우 템플릿을 다른 사용자와 공유할 수 있는 상태
 
 ### 기능 범위
-- LLM 어댑터 라우팅 고도화 (Gemini/Codex/OpenAI)
-- 주간/월간 리포트 자동화
-- 패턴 분석 + 개선안 제시
-- 일정 충돌 분석 고도화
-
----
-
-## Phase 4 (v1.0): Scale — 외부 앱 + 자동화
-
-### 기능 범위
-- 외부 앱 확장 (external_apps 스키마)
-- 승인형 자동화 범위 확대
-- 오프라인 고도화
-- 알림/위젯 고도화
+- 워크플로우 템플릿 공유
+- 커뮤니티 피드 (인기 워크플로우, 에이전트 설정)
+- 팀 워크스페이스 (2~5인 소규모 팀)
+- PWA 안정화 + 모바일 UI
+- 수익 모델 구현 (Free/Pro/Team)
 
 ---
 
@@ -90,5 +84,4 @@ npm run build    # 빌드 체크
 - chore: 설정/빌드
 
 ---
-
 *Customize these phases as the project evolves.*

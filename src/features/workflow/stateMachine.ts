@@ -65,5 +65,4 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
     NO_ACTIVE_SESSION: '활성 세션이 없습니다.',
     ACTIVE_SESSION_EXISTS: '이미 진행 중인 세션이 있습니다.',
     SCHEDULE_CONFLICT: '일정 충돌이 감지되었습니다.',
-    INVALID_COMMAND_ARGS: '명령 인자가 올바르지 않습니다.',
 }

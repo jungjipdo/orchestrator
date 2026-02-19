@@ -1,15 +1,24 @@
 // ============================================
 // conflictDetector.ts — 일정 충돌 감지 (Contract C4)
 // [start, end) 반개구간 기준
+// 향후 에이전트 Task 스케줄링에서 재활용 가능
 // ============================================
 
-import type { FixedEvent, ScheduleSlot } from '../../types/index'
+import type { FixedEvent } from '../../types/index'
+
+// === 범용 시간 슬롯 (에이전트 작업에도 적용 가능) ===
+
+export interface TimeSlot {
+    id: string
+    start: string
+    end: string
+}
 
 // === 충돌 결과 ===
 
 export interface Conflict {
-    slotA: { id: string; start: string; end: string }
-    slotB: { id: string; start: string; end: string }
+    slotA: TimeSlot
+    slotB: TimeSlot
 }
 
 // === 충돌 감지 (반개구간 [start, end)) ===
@@ -48,9 +57,9 @@ export function detectEventConflicts(events: FixedEvent[]): Conflict[] {
     return conflicts
 }
 
-/** 스케줄 슬롯이 고정 일정과 충돌하는지 검사 */
+/** 범용 시간 슬롯이 고정 일정과 충돌하는지 검사 */
 export function detectSlotConflicts(
-    slots: ScheduleSlot[],
+    slots: TimeSlot[],
     fixedEvents: FixedEvent[],
 ): Conflict[] {
     const conflicts: Conflict[] = []
@@ -59,7 +68,7 @@ export function detectSlotConflicts(
         for (const event of fixedEvents) {
             if (overlaps(slot.start, slot.end, event.start_at, event.end_at)) {
                 conflicts.push({
-                    slotA: { id: slot.work_item_id, start: slot.start, end: slot.end },
+                    slotA: { id: slot.id, start: slot.start, end: slot.end },
                     slotB: { id: event.id, start: event.start_at, end: event.end_at },
                 })
             }

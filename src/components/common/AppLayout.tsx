@@ -22,6 +22,7 @@ import {
     Moon,
     Sun,
     LogOut,
+    Bot,
 } from 'lucide-react'
 import { Dashboard } from '../dashboard/Dashboard'
 import { ReleasePlanView } from '../views/ReleasePlanView'
@@ -29,9 +30,10 @@ import { TimelineView } from '../views/TimelineView'
 import { ActiveTaskView } from '../views/ActiveTaskView'
 import { LogView } from '../views/LogView'
 import { SettingsView } from '../views/SettingsView'
+import { OrchestrationView } from '../views/OrchestrationView'
 
 // ─── 6탭 ViewType ───
-export type ViewType = 'dashboard' | 'release-plan' | 'timeline' | 'active-task' | 'log' | 'settings'
+export type ViewType = 'dashboard' | 'release-plan' | 'timeline' | 'active-task' | 'orchestration' | 'log' | 'settings'
 
 interface NavItem {
     id: ViewType
@@ -59,6 +61,7 @@ export function AppLayout() {
         { id: 'release-plan', label: 'Release Plan', icon: GitBranch, badge: null },
         { id: 'timeline', label: 'Timeline', icon: Clock, badge: null },
         { id: 'active-task', label: 'Active Task', icon: Zap, badge: activeSession ? 'Running' : null },
+        { id: 'orchestration', label: 'Orchestration', icon: Bot, badge: null },
         { id: 'log', label: 'Log', icon: ScrollText, badge: null },
     ]
 
@@ -124,6 +127,8 @@ export function AppLayout() {
                 return <TimelineView onNavigate={handleNavigate} />
             case 'active-task':
                 return <ActiveTaskView />
+            case 'orchestration':
+                return <OrchestrationView />
             case 'log':
                 return <LogView />
             case 'settings':

@@ -1,8 +1,5 @@
-// ============================================
-// workItems.ts — work_items 테이블 CRUD + 상태 전이
-// ============================================
-
 import { supabase } from './client'
+import { requireUserId } from './auth'
 import type {
     WorkItemRow,
     WorkItemInsert,
@@ -41,9 +38,10 @@ export async function getWorkItemById(id: string) {
 // === Create ===
 
 export async function createWorkItem(item: WorkItemInsert) {
+    const user_id = await requireUserId()
     const { data, error } = await supabase
         .from('work_items')
-        .insert(item)
+        .insert({ ...item, user_id })
         .select()
         .single()
 

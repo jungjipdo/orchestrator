@@ -77,7 +77,7 @@ export function ReleasePlanView() {
             return saved ? JSON.parse(saved) : ['plans', 'projects']
         } catch { return ['plans', 'projects'] }
     })
-    const [draggedSection, setDraggedSection] = useState<string | null>(null)
+    const [, setDraggedSection] = useState<string | null>(null)
 
     useEffect(() => {
         localStorage.setItem(SECTION_ORDER_KEY, JSON.stringify(sectionOrder))
@@ -410,7 +410,7 @@ export function ReleasePlanView() {
             onDragStart={(e) => handleSectionDragStart(e, 'plans')}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => handleSectionDrop(e, 'plans')}
-            className={`transition-opacity ${draggedSection === 'plans' ? 'opacity-50' : ''}`}
+            className="transition-opacity"
         >
             <h3 className="text-lg font-medium mb-4 flex items-center gap-2 cursor-grab select-none">
                 <GripVertical className="w-4 h-4 text-muted-foreground" />
@@ -502,7 +502,7 @@ export function ReleasePlanView() {
             onDragStart={(e) => handleSectionDragStart(e, 'projects')}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => handleSectionDrop(e, 'projects')}
-            className={`transition-opacity ${draggedSection === 'projects' ? 'opacity-50' : ''}`}
+            className="transition-opacity"
         >
             <h3 className="text-lg font-medium mb-4 flex items-center gap-2 cursor-grab select-none">
                 <GripVertical className="w-4 h-4 text-muted-foreground" />

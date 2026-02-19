@@ -118,7 +118,7 @@ export function useGitHub(): UseGitHubReturn {
             provider: 'github',
             options: {
                 redirectTo: origin,
-                scopes: 'repo,read:user,read:org',
+                scopes: 'repo,read:user',
             },
         })
     }, [])
@@ -143,7 +143,7 @@ export function useGitHub(): UseGitHubReturn {
                     provider: 'github',
                     options: {
                         redirectTo: origin,
-                        scopes: 'repo,read:user,read:org',
+                        scopes: 'repo,read:user',
                     },
                 })
             })
@@ -153,7 +153,7 @@ export function useGitHub(): UseGitHubReturn {
                 provider: 'github',
                 options: {
                     redirectTo: origin,
-                    scopes: 'repo,read:user,read:org',
+                    scopes: 'repo,read:user',
                 },
             })
         }

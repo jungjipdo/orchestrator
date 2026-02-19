@@ -22,13 +22,13 @@ import { useEditorModels } from '../../hooks/useEditorModels'
 import type { AIModel, EditorType } from '../../types/index'
 
 const ALL_MODELS: { key: AIModel; label: string; short: string }[] = [
-    { key: 'claude_opus_4_6', label: 'Claude Opus 4.6', short: 'Opus' },
-    { key: 'claude_sonnet_4_6', label: 'Claude Sonnet 4.6', short: 'Sonnet' },
+    { key: 'claude_opus_4_6', label: 'Claude Opus 4.6', short: 'C-Opus' },
+    { key: 'claude_sonnet_4_6', label: 'Claude Sonnet 4.6', short: 'C-Sonnet' },
     { key: 'gpt_5_3_codex', label: 'GPT-5.3-Codex', short: 'GPT-5' },
     { key: 'gpt_5_3_codex_spark', label: 'Codex-Spark', short: 'Spark' },
-    { key: 'gemini_3_pro', label: 'Gemini 3 Pro', short: 'Pro' },
-    { key: 'gemini_3_flash', label: 'Gemini 3 Flash', short: 'Flash' },
-    { key: 'gemini_3_deep_think', label: 'Gemini Deep Think', short: 'Think' },
+    { key: 'gemini_3_pro', label: 'Gemini 3 Pro', short: 'G-Pro' },
+    { key: 'gemini_3_flash', label: 'Gemini 3 Flash', short: 'G-Flash' },
+    { key: 'gemini_3_deep_think', label: 'Gemini Deep Think', short: 'G-Think' },
 ]
 
 const ALL_EDITORS: { type: EditorType; label: string }[] = [
@@ -194,11 +194,11 @@ export function SettingsView() {
                                     <div className="border rounded-lg divide-y">
                                         {pagedRepos.map((repo) => (
                                             <div key={repo.id} className="flex items-center justify-between px-4 py-3">
-                                                <span className="text-base truncate mr-3">
+                                                <span className="text-sm truncate mr-3">
                                                     {repo.full_name.includes('/') ? (
                                                         <>
-                                                            <span className="text-foreground">{repo.full_name.split('/')[0]}/</span>
-                                                            <span className="font-semibold bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded text-red-600 dark:text-red-400 font-mono text-sm">{repo.full_name.split('/').slice(1).join('/')}</span>
+                                                            <span className="text-muted-foreground">{repo.full_name.split('/')[0]}/</span>
+                                                            <span className="font-semibold bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded text-red-600 dark:text-red-400 font-mono">{repo.full_name.split('/').slice(1).join('/')}</span>
                                                         </>
                                                     ) : (
                                                         <span className="font-medium">{repo.full_name}</span>

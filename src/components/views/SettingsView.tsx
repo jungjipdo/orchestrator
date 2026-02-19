@@ -337,7 +337,7 @@ export function SettingsView() {
                                                             type="button"
                                                             onClick={() => handleToggleModel(editor.type, m.key)}
                                                             className={`
-                                                                w-6 h-6 rounded border-2 flex items-center justify-center transition-all cursor-pointer
+                                                                w-6 h-6 rounded border-2 flex items-center justify-center transition-all cursor-pointer mx-auto
                                                                 ${isChecked
                                                                     ? 'border-primary bg-primary text-white'
                                                                     : 'border-muted-foreground/20 hover:border-primary/50'

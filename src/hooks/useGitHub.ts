@@ -95,7 +95,7 @@ export function useGitHub(): UseGitHubReturn {
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             console.log('[GitHub] onAuthStateChange:', event, 'provider_token:', session?.provider_token ? '있음' : '없음')
-            if (event === 'SIGNED_IN' && session?.provider_token) {
+            if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.provider_token) {
                 // GitHub OAuth 직후 → provider_token으로 sync
                 void syncGitHub(session.provider_token).then(() => {
                     // hash 정리
@@ -118,7 +118,7 @@ export function useGitHub(): UseGitHubReturn {
             provider: 'github',
             options: {
                 redirectTo: origin,
-                scopes: 'repo,read:user',
+                scopes: 'repo,read:user,read:org',
             },
         })
     }, [])
@@ -143,7 +143,7 @@ export function useGitHub(): UseGitHubReturn {
                     provider: 'github',
                     options: {
                         redirectTo: origin,
-                        scopes: 'repo,read:user',
+                        scopes: 'repo,read:user,read:org',
                     },
                 })
             })
@@ -153,7 +153,7 @@ export function useGitHub(): UseGitHubReturn {
                 provider: 'github',
                 options: {
                     redirectTo: origin,
-                    scopes: 'repo,read:user',
+                    scopes: 'repo,read:user,read:org',
                 },
             })
         }

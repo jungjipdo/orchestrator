@@ -271,9 +271,7 @@ export function Dashboard({ refreshTrigger, refresh, onNavigate }: DashboardProp
                     </div>
                     <div className="space-y-2">
                         {plans.slice(0, 5).map((plan) => {
-                            const typeColor = plan.plan_type === 'event' ? 'bg-blue-500'
-                                : plan.plan_type === 'project' ? 'bg-purple-500'
-                                    : 'bg-green-500'
+                            const typeColor = plan.status === 'active' ? 'bg-green-500' : 'bg-muted-foreground/30'
                             return (
                                 <Card key={plan.id} className="hover:shadow-sm transition-shadow">
                                     <CardContent className="p-4">

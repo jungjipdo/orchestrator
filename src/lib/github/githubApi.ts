@@ -155,7 +155,7 @@ async function githubFetch<T>(path: string, token: string): Promise<T> {
     return res.json() as Promise<T>
 }
 
-/** 연결된 계정의 레포 목록 (개인 + 조직 레포 통합) */
+/** 연결된 계정의 레포 목록 (개인 + 조직 + 기여한 레포 통합) */
 export async function listRepos(token: string): Promise<GitHubRepo[]> {
     // 1) 사용자 개인 레포 (owner, collaborator, org_member)
     const userReposPromise = githubFetch<{ repositories: GitHubRepo[] } | GitHubRepo[]>(
@@ -181,17 +181,51 @@ export async function listRepos(token: string): Promise<GitHubRepo[]> {
             }
         }
     } catch {
-        // org 목록 가져오기 실패해도 개인 레포는 반환
-        console.warn('[listRepos] org repos fetch failed, continuing with user repos only')
+        console.warn('[listRepos] org repos fetch failed')
+    }
+
+    // 3) 사용자가 issue/PR로 기여한 레포 (Search API)
+    let contributedRepos: GitHubRepo[] = []
+    try {
+        // 현재 사용자명 조회
+        const user = await githubFetch<{ login: string }>('/user', token)
+        if (user.login) {
+            // 최근 issue/PR이 있는 레포 검색 (최대 30개)
+            const searchResult = await githubFetch<{
+                items: { repository_url: string }[]
+            }>(`/search/issues?q=involves:${user.login}+is:public&sort=updated&per_page=30`, token)
+
+            // repository_url에서 고유 레포 full_name 추출
+            const repoFullNames = new Set<string>()
+            for (const item of searchResult.items) {
+                // repository_url: "https://api.github.com/repos/owner/repo"
+                const match = item.repository_url.match(/\/repos\/(.+)$/)
+                if (match) repoFullNames.add(match[1])
+            }
+
+            // 각 레포 정보 조회
+            const repoResults = await Promise.allSettled(
+                Array.from(repoFullNames).map(fullName =>
+                    githubFetch<GitHubRepo>(`/repos/${fullName}`, token)
+                )
+            )
+            for (const result of repoResults) {
+                if (result.status === 'fulfilled') {
+                    contributedRepos.push(result.value)
+                }
+            }
+        }
+    } catch {
+        console.warn('[listRepos] contributed repos fetch failed')
     }
 
     const data = await userReposPromise
     const userRepos = Array.isArray(data) ? data : (data.repositories ?? [])
 
-    // 3) 중복 제거 (id 기준) 후 병합
+    // 4) 중복 제거 (id 기준) 후 병합
     const seen = new Set<number>()
     const merged: GitHubRepo[] = []
-    for (const repo of [...userRepos, ...orgRepos]) {
+    for (const repo of [...userRepos, ...orgRepos, ...contributedRepos]) {
         if (!seen.has(repo.id)) {
             seen.add(repo.id)
             merged.push(repo)

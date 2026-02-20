@@ -15,6 +15,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Check,
+    RefreshCw,
 } from 'lucide-react'
 import { useGitHub } from '../../hooks/useGitHub'
 import { useModelScores, type ModelScoreEntry, DEFAULT_SCORES } from '../../hooks/useModelScores'
@@ -184,22 +185,32 @@ export function SettingsView() {
                                         </p>
                                     </div>
                                 </div>
-                                {confirmDisconnect ? (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs text-muted-foreground mr-1">해제할까요?</span>
-                                        <Button variant="destructive" size="sm" disabled={disconnecting} onClick={() => void handleDisconnect()}>
-                                            {disconnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '확인'}
-                                        </Button>
-                                        <Button variant="ghost" size="sm" disabled={disconnecting} onClick={() => setConfirmDisconnect(false)}>
-                                            취소
-                                        </Button>
-                                    </div>
-                                ) : (
-                                    <Button variant="outline" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setConfirmDisconnect(true)}>
-                                        <Unlink className="w-4 h-4 mr-1.5" />
-                                        연결 해제
+                                <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="sm" onClick={reconnect}>
+                                        <RefreshCw className="w-4 h-4 mr-1.5" />
+                                        권한 갱신
                                     </Button>
-                                )}
+                                    {confirmDisconnect ? (
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-muted-foreground mr-1">해제할까요?</span>
+                                            <Button variant="destructive" size="sm" disabled={disconnecting} onClick={() => void handleDisconnect()}>
+                                                {disconnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '확인'}
+                                            </Button>
+                                            <Button variant="ghost" size="sm" disabled={disconnecting} onClick={() => setConfirmDisconnect(false)}>
+                                                취소
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <Button variant="outline" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setConfirmDisconnect(true)}>
+                                            <Unlink className="w-4 h-4 mr-1.5" />
+                                            연결 해제
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground bg-muted/20 p-2.5 rounded-md border border-border/50 flex items-start gap-2">
+                                <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium mt-0.5">Tip</span>
+                                <p>프라이빗 레포나 조직 레포가 전부 보이지 않는다면, GitHub SSO 보안 세션이 만료되었거나 권한이 축소된 상태일 수 있습니다. <b>권한 갱신</b>을 눌러 다시 로그인해주세요.</p>
                             </div>
                             {repos.length > 0 && (
                                 <div>

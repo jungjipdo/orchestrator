@@ -1,15 +1,13 @@
 // ============================================
-// ReleasePlanView — Release Pipeline
-// Active Releases (Plans + Projects) + 섹션 순서 드래그
+// ReleasePlanView — Kanban + 3-Tier 계층 (v2)
+// [🔧 Projects | 📋 Plans] 세그먼트 → 3-Tier Tab → Kanban Board
 // ============================================
 
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { useWorkItems } from '../../hooks/useWorkItems'
-import { useProjectDeadlines } from '../../hooks/useProjectDeadlines'
 import { usePlans } from '../../hooks/usePlans'
 import { useProjects } from '../../hooks/useProjects'
-import { useGitHub } from '../../hooks/useGitHub'
-import { ProjectGitHubPanel } from '../github/ProjectGitHubPanel'
+import { useGoals } from '../../hooks/useGoals'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -17,1011 +15,609 @@ import { Progress } from '../ui/progress'
 import {
     AlertTriangle,
     GitBranch,
-    Calendar,
-    ListTodo,
-    Trash2,
-    GripVertical,
-    ArrowLeft,
-    Github,
-    ExternalLink,
-    ChevronDown,
     ChevronRight,
     Plus,
     X,
     Check,
+    Layers,
+    Target,
+    ListTodo,
+    FolderOpen,
+    FileText,
+    ArrowLeft,
 } from 'lucide-react'
 
-// ─── SubTask for Detail Plans ───
-interface SubTask {
-    id: string
-    title: string
-    done: boolean
+// ─── 타입 ───
+
+type Track = 'projects' | 'plans'
+type TierLevel = 1 | 2 | 3
+
+interface NavigationState {
+    track: Track
+    level: TierLevel
+    selectedParentId: string | null  // Level 1에서 선택한 Project/Plan ID
+    selectedGoalId: string | null    // Level 2에서 선택한 Goal ID
+    parentTitle: string | null
+    goalTitle: string | null
 }
 
-interface DetailPlan {
-    sub_tasks: SubTask[]
-    notes: string
-}
+// ─── Kanban 컬럼 정의 ───
 
-const SECTION_ORDER_KEY = 'orchestrator_section_order'
+const KANBAN_COLUMNS = {
+    level1: [
+        { key: 'active', label: 'Active', color: 'border-blue-400', bg: 'bg-blue-50/30', headerBg: 'bg-blue-500' },
+        { key: 'watching', label: 'Watching', color: 'border-amber-400', bg: 'bg-amber-50/30', headerBg: 'bg-amber-500' },
+        { key: 'archived', label: 'Archived', color: 'border-gray-400', bg: 'bg-gray-50/30', headerBg: 'bg-gray-500' },
+    ],
+    level2: [
+        { key: 'backlog', label: 'Backlog', color: 'border-gray-300', bg: 'bg-gray-50/30', headerBg: 'bg-gray-500' },
+        { key: 'active', label: 'Active', color: 'border-blue-400', bg: 'bg-blue-50/30', headerBg: 'bg-blue-500' },
+        { key: 'done', label: 'Done', color: 'border-emerald-400', bg: 'bg-emerald-50/30', headerBg: 'bg-emerald-500' },
+        { key: 'deferred', label: 'Deferred', color: 'border-gray-300', bg: 'bg-gray-50/20', headerBg: 'bg-gray-400' },
+    ],
+    level3: [
+        { key: 'backlog', label: 'Backlog', color: 'border-gray-300', bg: 'bg-gray-50/30', headerBg: 'bg-gray-500' },
+        { key: 'active', label: 'Active', color: 'border-blue-400', bg: 'bg-blue-50/30', headerBg: 'bg-blue-500' },
+        { key: 'blocked', label: 'Blocked', color: 'border-red-400', bg: 'bg-red-50/30', headerBg: 'bg-red-500' },
+        { key: 'done', label: 'Done', color: 'border-emerald-400', bg: 'bg-emerald-50/30', headerBg: 'bg-emerald-500' },
+    ],
+} as const
+
+// ═══════════════════════════════════════
+// 메인 컴포넌트
+// ═══════════════════════════════════════
 
 export function ReleasePlanView() {
-    const { items: allItems, loading: itemsLoading, updateItem, removeItem } = useWorkItems()
-    const { deadlines } = useProjectDeadlines({ upcomingDays: 30 })
-    const { plans, loading: plansLoading, deletePlan, updatePlan } = usePlans()
+    const { items: allItems, loading: itemsLoading, updateItem, removeItem, addItem } = useWorkItems()
+    const { plans, loading: plansLoading, deletePlan } = usePlans()
     const { projects, loading: projectsLoading, removeProject, updateProjectStatus } = useProjects()
-    const { connection } = useGitHub()
-    const githubToken = connection?.access_token ?? null
 
     const loading = itemsLoading || plansLoading || projectsLoading
-    const [dragOverActive, setDragOverActive] = useState(false)
 
-    // ─── Section Order (localStorage 저장) ───
-    const [sectionOrder, setSectionOrder] = useState<string[]>(() => {
-        try {
-            const saved = localStorage.getItem(SECTION_ORDER_KEY)
-            return saved ? JSON.parse(saved) : ['plans', 'projects']
-        } catch { return ['plans', 'projects'] }
+    // ─── 네비게이션 상태 ───
+    const [nav, setNav] = useState<NavigationState>({
+        track: 'projects',
+        level: 1,
+        selectedParentId: null,
+        selectedGoalId: null,
+        parentTitle: null,
+        goalTitle: null,
     })
-    const [, setDraggedSection] = useState<string | null>(null)
 
-    useEffect(() => {
-        localStorage.setItem(SECTION_ORDER_KEY, JSON.stringify(sectionOrder))
-    }, [sectionOrder])
+    // ─── Side Panel ───
+    const [sidePanelItemId, setSidePanelItemId] = useState<string | null>(null)
+    const sidePanelItem = useMemo(
+        () => allItems.find(i => i.id === sidePanelItemId),
+        [allItems, sidePanelItemId],
+    )
 
-    // ─── Detail Plan 펼침 state (여러 개 동시 열기) ───
-    const [expandedPlanIds, setExpandedPlanIds] = useState<Set<string>>(new Set())
-    const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(new Set())
-    const [subTaskInputs, setSubTaskInputs] = useState<Record<string, string>>({})
+    // ─── Goals 훅 (Level 2에서 사용) ───
+    const goalsFilter = useMemo(() => {
+        if (nav.level < 2 || !nav.selectedParentId) return undefined
+        return nav.track === 'projects'
+            ? { projectId: nav.selectedParentId }
+            : { planId: nav.selectedParentId }
+    }, [nav.level, nav.selectedParentId, nav.track])
+    const { goals, loading: goalsLoading, addGoal, editGoal, removeGoal } = useGoals(goalsFilter)
 
-    // ─── 클릭 vs 드래그 구분 ───
-    const mouseDownPos = useRef<{ x: number; y: number } | null>(null)
+    // ─── Level 3: Goal에 속하는 WorkItems ───
+    const goalItems = useMemo(() => {
+        if (!nav.selectedGoalId) return []
+        return allItems.filter(i => i.goal_id === nav.selectedGoalId && !i.deleted_at)
+    }, [allItems, nav.selectedGoalId])
 
-    const handleCardMouseDown = useCallback((e: React.MouseEvent) => {
-        mouseDownPos.current = { x: e.clientX, y: e.clientY }
-    }, [])
-
-    const togglePlanExpand = useCallback((planId: string, e: React.MouseEvent) => {
-        // 버튼/링크 클릭은 무시
-        if ((e.target as HTMLElement).closest('button, a, input')) return
-        // 드래그였으면 무시 (5px 이상 이동)
-        if (mouseDownPos.current) {
-            const dx = Math.abs(e.clientX - mouseDownPos.current.x)
-            const dy = Math.abs(e.clientY - mouseDownPos.current.y)
-            if (dx > 5 || dy > 5) return
-        }
-        setExpandedPlanIds(prev => {
-            const next = new Set(prev)
-            if (next.has(planId)) next.delete(planId)
-            else next.add(planId)
-            return next
-        })
-    }, [])
-
-    const toggleProjectExpand = useCallback((projectId: string, e: React.MouseEvent) => {
-        if ((e.target as HTMLElement).closest('button, a, input, select')) return
-        if (mouseDownPos.current) {
-            const dx = Math.abs(e.clientX - mouseDownPos.current.x)
-            const dy = Math.abs(e.clientY - mouseDownPos.current.y)
-            if (dx > 5 || dy > 5) return
-        }
-        setExpandedProjectIds(prev => {
-            const next = new Set(prev)
-            if (next.has(projectId)) next.delete(projectId)
-            else next.add(projectId)
-            return next
-        })
-    }, [])
-
-    // ─── Drag & Drop Handlers (Plans → Active) ───
-    const handleDragStart = useCallback((e: React.DragEvent, id: string, type: 'plan' | 'project') => {
-        e.dataTransfer.setData('text/plain', JSON.stringify({ id, type }))
-        e.dataTransfer.effectAllowed = 'move'
-    }, [])
-
-    const handleDragEnd = useCallback(() => {
-        setDragOverActive(false)
-    }, [])
-
-    const handleDragOver = useCallback((e: React.DragEvent) => {
-        e.preventDefault()
-        setDragOverActive(true)
-    }, [])
-
-    const handleDragLeave = useCallback(() => {
-        setDragOverActive(false)
-    }, [])
-
-    const handleDrop = useCallback((e: React.DragEvent) => {
-        e.preventDefault()
-        setDragOverActive(false)
-        try {
-            const raw = e.dataTransfer.getData('text/plain')
-            const { id, type } = JSON.parse(raw) as { id: string; type: 'plan' | 'project' }
-            // Optimistic: fire-and-forget (UI는 refresh에서 갱신)
-            if (type === 'plan') {
-                void updatePlan(id, { status: 'active' })
-            } else if (type === 'project') {
-                void updateProjectStatus(id, { status: 'active' })
+    // ─── 네비게이션 헬퍼 ───
+    const navigateTo = useCallback((level: TierLevel, id?: string, title?: string) => {
+        setNav(prev => {
+            if (level === 1) {
+                return { ...prev, level: 1, selectedParentId: null, selectedGoalId: null, parentTitle: null, goalTitle: null }
             }
-        } catch (err) {
-            console.error('Failed to activate:', err)
-        }
-    }, [updatePlan, updateProjectStatus])
-
-    // ─── Section Order Drag ───
-    const handleSectionDragStart = useCallback((e: React.DragEvent, sectionId: string) => {
-        e.dataTransfer.setData('section', sectionId)
-        setDraggedSection(sectionId)
-    }, [])
-
-    const handleSectionDrop = useCallback((e: React.DragEvent, targetSection: string) => {
-        e.preventDefault()
-        const sourceSection = e.dataTransfer.getData('section')
-        if (sourceSection && sourceSection !== targetSection) {
-            setSectionOrder(prev => {
-                const newOrder = [...prev]
-                const srcIdx = newOrder.indexOf(sourceSection)
-                const tgtIdx = newOrder.indexOf(targetSection)
-                if (srcIdx !== -1 && tgtIdx !== -1) {
-                    newOrder.splice(srcIdx, 1)
-                    newOrder.splice(tgtIdx, 0, sourceSection)
-                }
-                return newOrder
-            })
-        }
-        setDraggedSection(null)
-    }, [])
-
-    // ─── Derived ───
-    // ─── Plans 분리 ───
-    const activePlans = useMemo(() => plans.filter(p => p.status === 'active'), [plans])
-    const backlogPlans = useMemo(() => plans.filter(p => p.status !== 'active' && p.status !== 'done'), [plans])
-    const donePlans = useMemo(() => plans.filter(p => p.status === 'done'), [plans])
-
-    // ─── Projects 분리 ───
-    const activeProjects = useMemo(() => projects.filter(p => p.status === 'active'), [projects])
-    const backlogProjects = useMemo(() => projects.filter(p => p.status !== 'active' && p.status !== 'completed'), [projects])
-    const doneProjects = useMemo(() => projects.filter(p => p.status === 'completed'), [projects])
-
-    const activeProgress = useMemo(() => {
-        let totalSubTasks = 0
-        let doneSubTasks = 0
-
-        activePlans.forEach(p => {
-            const meta = p.metadata as Record<string, unknown> | undefined
-            const dp = meta?.detail_plan as { sub_tasks?: { done: boolean }[] } | undefined
-            const subTasks = dp?.sub_tasks ?? []
-            totalSubTasks += subTasks.length
-            doneSubTasks += subTasks.filter(t => t.done).length
+            if (level === 2 && id) {
+                return { ...prev, level: 2, selectedParentId: id, selectedGoalId: null, parentTitle: title ?? null, goalTitle: null }
+            }
+            if (level === 3 && id) {
+                return { ...prev, level: 3, selectedGoalId: id, goalTitle: title ?? null }
+            }
+            return prev
         })
-
-        activeProjects.forEach(p => {
-            const meta = (p as unknown as Record<string, unknown>).metadata as Record<string, unknown> | undefined
-            const dp = meta?.detail_plan as { sub_tasks?: { done: boolean }[] } | undefined
-            const subTasks = dp?.sub_tasks ?? []
-            totalSubTasks += subTasks.length
-            doneSubTasks += subTasks.filter(t => t.done).length
-        })
-
-        const percent = totalSubTasks > 0 ? Math.round((doneSubTasks / totalSubTasks) * 100) : 0
-        return { done: doneSubTasks, total: totalSubTasks, percent }
-    }, [activePlans, activeProjects])
-
-    // ─── Today Completed 필터 ───
-    const todayStart = useMemo(() => {
-        const d = new Date()
-        d.setHours(0, 0, 0, 0)
-        return d.getTime()
     }, [])
 
-    const completedTodayPlans = useMemo(() =>
-        donePlans.filter(p => new Date(p.updated_at).getTime() >= todayStart)
-        , [donePlans, todayStart])
+    // ─── Today Completed (전체) ───
+    const todayCompleted = useMemo(() => {
+        const todayStart = new Date()
+        todayStart.setHours(0, 0, 0, 0)
+        const todayStr = todayStart.toISOString()
+        return allItems.filter(i =>
+            i.status === 'done' && i.completed_at && i.completed_at >= todayStr
+        )
+    }, [allItems])
 
-    const completedTodayProjects = useMemo(() =>
-        doneProjects.filter(p => new Date(p.updated_at).getTime() >= todayStart)
-        , [doneProjects, todayStart])
+    // ─── Goal 추가 인풋 ───
+    const [newGoalTitle, setNewGoalTitle] = useState('')
+    const [newTaskTitle, setNewTaskTitle] = useState('')
 
-    const handleDeactivatePlan = useCallback(async (planId: string) => {
-        try { await updatePlan(planId, { status: 'backlog' }) }
-        catch (err) { console.error('Failed to deactivate plan:', err) }
-    }, [updatePlan])
-
-    const handleDeactivateProject = useCallback(async (projectId: string) => {
-        try { await updateProjectStatus(projectId, { status: 'archived' }) }
-        catch (err) { console.error('Failed to deactivate project:', err) }
-    }, [updateProjectStatus])
-
-    // ─── Detail Plan Helpers ───
-    const getPlanDetailPlan = useCallback((planId: string): DetailPlan => {
-        const plan = plans.find(p => p.id === planId)
-        const meta = plan?.metadata as Record<string, unknown> | undefined
-        const dp = meta?.detail_plan as DetailPlan | undefined
-        return dp ?? { sub_tasks: [], notes: '' }
-    }, [plans])
-
-    const savePlanDetailPlan = useCallback(async (planId: string, dp: DetailPlan) => {
-        const plan = plans.find(p => p.id === planId)
-        if (!plan) return
-        const meta = { ...(plan.metadata as Record<string, unknown>), detail_plan: dp }
-        await updatePlan(planId, { metadata: meta } as Record<string, unknown>)
-    }, [plans, updatePlan])
-
-    const addSubTask = useCallback(async (entityId: string, entityType: 'plan' | 'project') => {
-        const text = (subTaskInputs[entityId] ?? '').trim()
-        if (!text) return
-        const newTask: SubTask = { id: crypto.randomUUID(), title: text, done: false }
-
-        if (entityType === 'plan') {
-            const dp = getPlanDetailPlan(entityId)
-            dp.sub_tasks.push(newTask)
-            await savePlanDetailPlan(entityId, dp)
-        }
-        setSubTaskInputs(prev => ({ ...prev, [entityId]: '' }))
-    }, [subTaskInputs, getPlanDetailPlan, savePlanDetailPlan])
-
-    const toggleSubTask = useCallback(async (entityId: string, taskId: string, entityType: 'plan' | 'project') => {
-        if (entityType === 'plan') {
-            const dp = getPlanDetailPlan(entityId)
-            dp.sub_tasks = dp.sub_tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t)
-            await savePlanDetailPlan(entityId, dp)
-        }
-    }, [getPlanDetailPlan, savePlanDetailPlan])
-
-    const removeSubTask = useCallback(async (entityId: string, taskId: string, entityType: 'plan' | 'project') => {
-        if (entityType === 'plan') {
-            const dp = getPlanDetailPlan(entityId)
-            dp.sub_tasks = dp.sub_tasks.filter(t => t.id !== taskId)
-            await savePlanDetailPlan(entityId, dp)
-        }
-    }, [getPlanDetailPlan, savePlanDetailPlan])
-
-    if (loading) {
+    if (loading || goalsLoading) {
         return (
             <div className="space-y-6">
-                <div className="h-8 bg-muted rounded animate-pulse w-64" />
-                <div className="h-4 bg-muted rounded animate-pulse w-full" />
-                <div className="grid gap-4">
-                    {[1, 2, 3].map(i => (
-                        <div key={i} className="h-32 bg-muted rounded animate-pulse" />
+                <div className="h-10 bg-muted rounded-lg animate-pulse w-64" />
+                <div className="grid grid-cols-4 gap-4">
+                    {[1, 2, 3, 4].map(i => (
+                        <div key={i} className="h-96 bg-muted rounded-lg animate-pulse" />
                     ))}
                 </div>
             </div>
         )
-    }
-
-    // ─── Detail Panel (공유) ───
-    const renderDetailPanel = (entityId: string, entityType: 'plan' | 'project') => {
-        const dp = entityType === 'plan' ? getPlanDetailPlan(entityId) : { sub_tasks: [], notes: '' }
-        const doneCount = dp.sub_tasks.filter(t => t.done).length
-        const progress = dp.sub_tasks.length > 0 ? Math.round((doneCount / dp.sub_tasks.length) * 100) : 0
-
-        return (
-            <div className="mt-3 pt-3 border-t border-border/50 space-y-3">
-                {/* Progress */}
-                {dp.sub_tasks.length > 0 && (
-                    <div className="flex items-center gap-2">
-                        <Progress value={progress} className="h-2 flex-1 [&>div]:transition-all [&>div]:duration-500 [&>div]:ease-out" />
-                        <span className="text-xs text-muted-foreground">{doneCount}/{dp.sub_tasks.length}</span>
-                    </div>
-                )}
-
-                {/* Sub Tasks */}
-                <div className="space-y-1">
-                    {dp.sub_tasks.map(task => (
-                        <div key={task.id} className="flex items-center gap-2 group">
-                            <button
-                                type="button"
-                                onClick={() => void toggleSubTask(entityId, task.id, entityType)}
-                                className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${task.done
-                                    ? 'bg-green-500 border-green-500 text-white'
-                                    : 'border-muted-foreground/30 hover:border-primary'
-                                    }`}
-                            >
-                                {task.done && <Check className="w-3 h-3" />}
-                            </button>
-                            <span className={`text-sm flex-1 ${task.done ? 'line-through text-muted-foreground' : ''}`}>
-                                {task.title}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => void removeSubTask(entityId, task.id, entityType)}
-                                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
-                            >
-                                <X className="w-3 h-3" />
-                            </button>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Add Sub Task */}
-                {entityType === 'plan' && (
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="text"
-                            value={subTaskInputs[entityId] ?? ''}
-                            onChange={(e) => setSubTaskInputs(prev => ({ ...prev, [entityId]: e.target.value }))}
-                            onKeyDown={(e) => e.key === 'Enter' && void addSubTask(entityId, entityType)}
-                            placeholder="서브태스크 추가..."
-                            className="flex-1 text-sm px-2 py-1 rounded border border-border bg-transparent focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0"
-                            onClick={() => void addSubTask(entityId, entityType)}
-                            disabled={!(subTaskInputs[entityId] ?? '').trim()}
-                        >
-                            <Plus className="w-4 h-4" />
-                        </Button>
-                    </div>
-                )}
-            </div>
-        )
-    }
-
-    // ─── Plans Section ───
-    const renderPlansSection = () => (
-        <div
-            draggable
-            onDragStart={(e) => handleSectionDragStart(e, 'plans')}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => handleSectionDrop(e, 'plans')}
-            className="transition-opacity"
-        >
-            <h3 className="text-lg font-medium mb-4 flex items-center gap-2 cursor-grab select-none">
-                <GripVertical className="w-4 h-4 text-muted-foreground" />
-                Plans ({backlogPlans.length})
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {backlogPlans.length === 0 ? (
-                    <Card className="sm:col-span-2 lg:col-span-3">
-                        <CardContent className="p-6 text-center text-muted-foreground">
-                            <ListTodo className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                            <p>No plans yet. Create a plan from Dashboard.</p>
-                        </CardContent>
-                    </Card>
-                ) : (
-                    backlogPlans.map(plan => {
-                        const PlanIcon = plan.plan_type === 'event' ? Calendar
-                            : plan.plan_type === 'project' ? GitBranch
-                                : ListTodo
-                        const statusColor = plan.status === 'done' ? 'bg-green-500'
-                            : plan.status === 'candidate' ? 'bg-yellow-500'
-                                : 'bg-gray-400'
-                        const isExpanded = expandedPlanIds.has(plan.id)
-
-                        return (
-                            <Card
-                                key={plan.id}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, plan.id, 'plan')}
-                                onDragEnd={handleDragEnd}
-                                onMouseDown={handleCardMouseDown}
-                                onMouseUp={(e) => togglePlanExpand(plan.id, e)}
-                                className="cursor-pointer hover:shadow-sm transition-all"
-                            >
-                                <CardContent className="p-5 min-h-[140px]">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
-                                            <div className={`w-3 h-3 rounded-full ${statusColor} shrink-0`} />
-                                            <PlanIcon className="w-4 h-4 text-muted-foreground shrink-0" />
-                                            <div className="min-w-0">
-                                                <div className="font-medium text-sm truncate">
-                                                    {plan.title}
-                                                    {plan.due_at && (
-                                                        <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                                            Due: {new Date(plan.due_at).toLocaleDateString('ko-KR')}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <Badge variant="outline" className="text-xs capitalize">{plan.plan_type}</Badge>
-                                                    <Badge variant="outline" className="text-xs capitalize">{plan.status}</Badge>
-                                                    {plan.priority && (
-                                                        <Badge
-                                                            variant={plan.priority === 'critical' ? 'destructive' : 'outline'}
-                                                            className="text-xs"
-                                                        >
-                                                            {plan.priority}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-1 shrink-0">
-                                            {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                                            <button
-                                                type="button"
-                                                onClick={() => void deletePlan(plan.id)}
-                                                className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
-                                                title="삭제"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                    {isExpanded && renderDetailPanel(plan.id, 'plan')}
-                                </CardContent>
-                            </Card>
-                        )
-                    })
-                )}
-            </div>
-        </div>
-    )
-
-    // ─── Projects Section ───
-    const renderProjectsSection = () => (
-        <div
-            draggable
-            onDragStart={(e) => handleSectionDragStart(e, 'projects')}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => handleSectionDrop(e, 'projects')}
-            className="transition-opacity"
-        >
-            <h3 className="text-lg font-medium mb-4 flex items-center gap-2 cursor-grab select-none">
-                <GripVertical className="w-4 h-4 text-muted-foreground" />
-                Projects ({backlogProjects.length})
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {backlogProjects.length === 0 ? (
-                    <Card className="sm:col-span-2 lg:col-span-3">
-                        <CardContent className="p-6 text-center text-muted-foreground">
-                            <Github className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                            <p>No projects. Import from Dashboard.</p>
-                        </CardContent>
-                    </Card>
-                ) : (
-                    backlogProjects.map(project => {
-                        const isExpanded = expandedProjectIds.has(project.id)
-                        return (
-                            <Card
-                                key={project.id}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, project.id, 'project')}
-                                onDragEnd={handleDragEnd}
-                                onMouseDown={handleCardMouseDown}
-                                onMouseUp={(e) => toggleProjectExpand(project.id, e)}
-                                className="cursor-pointer hover:shadow-sm transition-all"
-                            >
-                                <CardContent className="p-4">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <Github className="w-5 h-5 text-muted-foreground shrink-0" />
-                                            <div className="min-w-0">
-                                                <div className="font-medium text-sm truncate flex items-center gap-1">
-                                                    <span className="text-muted-foreground">{project.repo_full_name.split('/')[0]}/</span>
-                                                    <span style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }} className="dark:!bg-[#7f1d1d33] dark:!text-[#fca5a5]">{project.repo_full_name.split('/')[1]}</span>
-                                                </div>
-                                                {project.description && (
-                                                    <p className="text-xs text-muted-foreground truncate mt-0.5">{project.description}</p>
-                                                )}
-                                                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                                    {project.language && (
-                                                        <Badge variant="outline" className="text-xs">{project.language}</Badge>
-                                                    )}
-                                                    <Badge variant="outline" className="text-xs">{project.default_branch}</Badge>
-                                                    {project.is_private && (
-                                                        <Badge variant="outline" className="text-xs text-yellow-600">private</Badge>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-1 shrink-0">
-                                            {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                                            <a
-                                                href={project.repo_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                                                title="GitHub에서 열기"
-                                            >
-                                                <ExternalLink className="w-4 h-4" />
-                                            </a>
-                                            <button
-                                                type="button"
-                                                onClick={() => void removeProject(project.id)}
-                                                className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
-                                                title="프로젝트 삭제"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                    {isExpanded && (
-                                        <ProjectGitHubPanel
-                                            repoFullName={project.repo_full_name}
-                                            token={githubToken}
-                                        />
-                                    )}
-                                </CardContent>
-                            </Card>
-                        )
-                    })
-                )}
-            </div>
-        </div>
-    )
-
-    const sectionRenderers: Record<string, () => React.JSX.Element> = {
-        plans: renderPlansSection,
-        projects: renderProjectsSection,
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-semibold">Release Plan</h2>
-                    <p className="text-muted-foreground">Continuous development with intelligent orchestration</p>
+        <div className="space-y-4">
+            {/* ═══ 세그먼트 컨트롤 (Track 전환) ═══ */}
+            <div className="flex items-center gap-4">
+                <div className="flex bg-muted rounded-lg p-1 gap-1">
+                    <button
+                        type="button"
+                        onClick={() => setNav({ track: 'projects', level: 1, selectedParentId: null, selectedGoalId: null, parentTitle: null, goalTitle: null })}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer flex items-center gap-2 ${nav.track === 'projects' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                    >
+                        <FolderOpen className="w-4 h-4" />
+                        Projects
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setNav({ track: 'plans', level: 1, selectedParentId: null, selectedGoalId: null, parentTitle: null, goalTitle: null })}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer flex items-center gap-2 ${nav.track === 'plans' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                    >
+                        <FileText className="w-4 h-4" />
+                        Plans
+                    </button>
                 </div>
-                <div className="text-right">
-                    <div className="text-2xl font-bold">{activeProgress.percent}%</div>
-                    <div className="text-sm text-muted-foreground">
-                        Active Progress · {activeProgress.done}/{activeProgress.total}
-                    </div>
-                </div>
-            </div>
 
-            <Progress value={activeProgress.percent} className="h-3" />
-
-            {/* Active Releases — Drop Zone */}
-            <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => void handleDrop(e)}
-            >
-                <h3 className="text-lg font-medium mb-4">Active Releases</h3>
-                <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4 p-2 rounded-lg border-2 border-dashed transition-all ${dragOverActive
-                    ? 'border-primary bg-primary/5'
-                    : 'border-transparent'
-                    }`}>
-                    {/* Work Items 기반 릴리스 그룹 - 이제 개별 Project 카드 내부로 이동됨 */}
-
-                    {/* Active Plans — 서브태스크 인라인 표시 */}
-                    {activePlans.map(plan => {
-                        const PlanIcon = plan.plan_type === 'event' ? Calendar
-                            : plan.plan_type === 'project' ? GitBranch
-                                : ListTodo
-                        const dp = getPlanDetailPlan(plan.id)
-                        const activeTasks = dp.sub_tasks.filter(t => !t.done)
-                        const doneTasks = dp.sub_tasks.filter(t => t.done)
-                        const progress = dp.sub_tasks.length > 0 ? Math.round((doneTasks.length / dp.sub_tasks.length) * 100) : 0
-                        return (
-                            <Card key={plan.id} className="border-blue-200 bg-blue-50/30">
-                                <CardContent className="p-5">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-3 h-3 rounded-full bg-blue-500" />
-                                            <PlanIcon className="w-4 h-4 text-blue-600" />
-                                            <div>
-                                                <div className="font-medium">
-                                                    {plan.title}
-                                                    {plan.due_at && (
-                                                        <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                                            Due: {new Date(plan.due_at).toLocaleDateString('ko-KR')}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <Badge variant="outline" className="text-xs capitalize">{plan.plan_type}</Badge>
-                                                    <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200">Active</Badge>
-                                                    {plan.priority && (
-                                                        <Badge variant={plan.priority === 'critical' ? 'destructive' : 'outline'} className="text-xs">
-                                                            {plan.priority}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <button type="button" onClick={() => void handleDeactivatePlan(plan.id)}
-                                                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer" title="Backlog으로 되돌리기">
-                                                <ArrowLeft className="w-4 h-4" />
-                                            </button>
-                                            <button type="button" onClick={() => void deletePlan(plan.id)}
-                                                className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer" title="삭제">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Sub Tasks 인라인 표시 */}
-                                    {dp.sub_tasks.length > 0 && (
-                                        <div className="mt-4 space-y-3">
-                                            <div className="flex items-center gap-2">
-                                                <Progress value={progress} className="h-2 flex-1" />
-                                                <span className="text-xs text-muted-foreground font-medium">{doneTasks.length}/{dp.sub_tasks.length}</span>
-                                            </div>
-
-                                            {/* 활성 태스크 */}
-                                            {activeTasks.length > 0 && (
-                                                <div className="space-y-1">
-                                                    {activeTasks.map(task => (
-                                                        <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-white/60 group">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => void toggleSubTask(plan.id, task.id, 'plan')}
-                                                                className="w-4 h-4 rounded border border-muted-foreground/30 hover:border-primary flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-                                                            />
-                                                            <span className="text-sm flex-1">{task.title}</span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => void removeSubTask(plan.id, task.id, 'plan')}
-                                                                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
-                                                            >
-                                                                <X className="w-3 h-3" />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-
-                                            {/* 완료된 태스크 */}
-                                            {doneTasks.length > 0 && (
-                                                <div className="space-y-1">
-                                                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Completed</div>
-                                                    {doneTasks.map(task => (
-                                                        <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-green-50/50 group">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => void toggleSubTask(plan.id, task.id, 'plan')}
-                                                                className="w-4 h-4 rounded bg-green-500 border-green-500 text-white flex items-center justify-center shrink-0 cursor-pointer"
-                                                            >
-                                                                <Check className="w-3 h-3" />
-                                                            </button>
-                                                            <span className="text-sm flex-1 line-through text-muted-foreground">{task.title}</span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => void removeSubTask(plan.id, task.id, 'plan')}
-                                                                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
-                                                            >
-                                                                <X className="w-3 h-3" />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* 서브태스크 추가 */}
-                                    <div className="flex items-center gap-2 mt-3">
-                                        <input
-                                            type="text"
-                                            value={subTaskInputs[plan.id] ?? ''}
-                                            onChange={(e) => setSubTaskInputs(prev => ({ ...prev, [plan.id]: e.target.value }))}
-                                            onKeyDown={(e) => e.key === 'Enter' && void addSubTask(plan.id, 'plan')}
-                                            placeholder="서브태스크 추가..."
-                                            className="flex-1 text-sm px-3 py-1.5 rounded border border-border bg-white/80 focus:outline-none focus:ring-1 focus:ring-primary"
-                                        />
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-7 w-7 p-0"
-                                            onClick={() => void addSubTask(plan.id, 'plan')}
-                                            disabled={!(subTaskInputs[plan.id] ?? '').trim()}
-                                        >
-                                            <Plus className="w-4 h-4" />
-                                        </Button>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )
-                    })}
-
-                    {/* Active Projects */}
-                    {activeProjects.map(project => {
-                        const projectItems = allItems.filter(i => i.project_id === project.id)
-                        const activeTasks = projectItems.filter(i => i.status !== 'done')
-                        const doneTasks = projectItems.filter(i => i.status === 'done')
-                        // 가중치 기반 진척률: estimate_min 합산 (없으면 1로 처리)
-                        const doneWeight = doneTasks.reduce((s, i) => s + (i.estimate_min ?? 1), 0)
-                        const totalWeight = projectItems.reduce((s, i) => s + (i.estimate_min ?? 1), 0)
-                        const progress = totalWeight > 0 ? Math.round((doneWeight / totalWeight) * 100) : 0
-
-                        return (
-                            <Card key={project.id} className="border-green-200 bg-green-50/30">
-                                <CardContent className="p-4">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-3 h-3 rounded-full bg-green-500" />
-                                            <Github className="w-4 h-4 text-green-600" />
-                                            <div>
-                                                <div className="font-medium text-sm flex items-center gap-1">
-                                                    <span className="text-muted-foreground">{project.repo_full_name.split('/')[0]}/</span>
-                                                    <span style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }} className="dark:!bg-[#7f1d1d33] dark:!text-[#fca5a5]">{project.repo_full_name.split('/')[1]}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    {project.language && <Badge variant="outline" className="text-xs">{project.language}</Badge>}
-                                                    <Badge className="text-xs bg-green-100 text-green-700 border-green-200">Active</Badge>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <button type="button" onClick={() => void handleDeactivateProject(project.id)}
-                                                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer" title="비활성화">
-                                                <ArrowLeft className="w-4 h-4" />
-                                            </button>
-                                            <a href={project.repo_url} target="_blank" rel="noopener noreferrer"
-                                                className="p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors" title="GitHub">
-                                                <ExternalLink className="w-4 h-4" />
-                                            </a>
-                                        </div>
-                                    </div>
-
-                                    {/* Project Tasks 인라인 표시 */}
-                                    {projectItems.length > 0 && (
-                                        <div className="mt-4 space-y-3">
-                                            <div className="flex items-center gap-2">
-                                                <Progress value={progress} className="h-2 flex-1" />
-                                                <span className="text-xs text-muted-foreground font-medium">{doneTasks.length}/{projectItems.length}</span>
-                                            </div>
-
-                                            {/* 활성 태스크 */}
-                                            {activeTasks.filter(t => t.status !== 'blocked').length > 0 && (
-                                                <div className="space-y-1">
-                                                    {activeTasks.filter(t => t.status !== 'blocked').map(task => (
-                                                        <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-white/60 group">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => void updateItem(task.id, { status: 'done' })}
-                                                                className="w-4 h-4 rounded border border-muted-foreground/30 hover:border-primary flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-                                                            />
-                                                            <div className="flex flex-col flex-1">
-                                                                <span className="text-sm">{task.title}</span>
-                                                                {task.next_action && <span className="text-xs text-muted-foreground">{task.next_action}</span>}
-                                                            </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => void updateItem(task.id, { status: 'blocked' }).catch(e => alert(e instanceof Error ? e.message : 'Error'))}
-                                                                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-red-500 transition-opacity cursor-pointer"
-                                                                title="차단 표시"
-                                                            >
-                                                                <AlertTriangle className="w-3 h-3" />
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => void removeItem(task.id)}
-                                                                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
-                                                            >
-                                                                <X className="w-3 h-3" />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-
-                                            {/* 차단된 태스크 */}
-                                            {activeTasks.filter(t => t.status === 'blocked').length > 0 && (
-                                                <div className="space-y-1">
-                                                    <div className="text-xs font-medium text-red-500 uppercase tracking-wider flex items-center gap-1">
-                                                        <AlertTriangle className="w-3 h-3" /> Blocked
-                                                    </div>
-                                                    {activeTasks.filter(t => t.status === 'blocked').map(task => (
-                                                        <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-red-50/50 group">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => void updateItem(task.id, { status: 'active' })}
-                                                                className="w-4 h-4 rounded border-2 border-red-400 text-red-500 flex items-center justify-center shrink-0 cursor-pointer hover:bg-red-100 transition-colors"
-                                                                title="차단 해제 (active로 복귀)"
-                                                            >
-                                                                <AlertTriangle className="w-2.5 h-2.5" />
-                                                            </button>
-                                                            <div className="flex flex-col flex-1">
-                                                                <span className="text-sm text-red-700">{task.title}</span>
-                                                                {task.next_action && <span className="text-xs text-red-400">{task.next_action}</span>}
-                                                            </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => void removeItem(task.id)}
-                                                                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
-                                                            >
-                                                                <X className="w-3 h-3" />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-
-                                            {/* 완료된 태스크 */}
-                                            {doneTasks.length > 0 && (
-                                                <div className="space-y-1">
-                                                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Completed</div>
-                                                    {doneTasks.map(task => (
-                                                        <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-green-50/50 group">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => void updateItem(task.id, { status: 'backlog' })}
-                                                                className="w-4 h-4 rounded bg-green-500 border-green-500 text-white flex items-center justify-center shrink-0 cursor-pointer"
-                                                            >
-                                                                <Check className="w-3 h-3" />
-                                                            </button>
-                                                            <span className="text-sm flex-1 line-through text-muted-foreground">{task.title}</span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => void removeItem(task.id)}
-                                                                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
-                                                            >
-                                                                <X className="w-3 h-3" />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        )
-                    })}
-
-                    {activePlans.length === 0 && activeProjects.length === 0 && (
-                        <Card className="lg:col-span-3">
-                            <CardContent className="p-6 text-center text-muted-foreground">
-                                <GitBranch className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                                <p>No active releases. Drag a plan or project here to activate.</p>
-                            </CardContent>
-                        </Card>
+                {/* ─── Breadcrumb ─── */}
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <button
+                        type="button"
+                        onClick={() => navigateTo(1)}
+                        className="hover:text-foreground cursor-pointer transition-colors"
+                    >
+                        {nav.track === 'projects' ? 'Projects' : 'Plans'}
+                    </button>
+                    {nav.parentTitle && (
+                        <>
+                            <ChevronRight className="w-3 h-3" />
+                            <button
+                                type="button"
+                                onClick={() => navigateTo(2, nav.selectedParentId!, nav.parentTitle!)}
+                                className="hover:text-foreground cursor-pointer transition-colors font-medium text-foreground"
+                            >
+                                {nav.parentTitle}
+                            </button>
+                        </>
+                    )}
+                    {nav.goalTitle && (
+                        <>
+                            <ChevronRight className="w-3 h-3" />
+                            <span className="font-medium text-foreground">{nav.goalTitle}</span>
+                        </>
                     )}
                 </div>
             </div>
 
-            {/* ─── Today Completed ─── */}
-            {(() => {
-                const todayStart = new Date()
-                todayStart.setHours(0, 0, 0, 0)
-                const todayStr = todayStart.toISOString()
-                const todayCompleted = allItems.filter(i =>
-                    i.status === 'done' &&
-                    i.completed_at &&
-                    i.completed_at >= todayStr
-                )
-                if (todayCompleted.length === 0) return null
-                return (
-                    <div className="mt-6">
-                        <div className="flex items-center gap-2 mb-3">
-                            <Check className="w-5 h-5 text-emerald-500" />
-                            <h3 className="text-lg font-semibold">Today Completed</h3>
-                            <Badge variant="secondary">{todayCompleted.length}</Badge>
-                        </div>
-                        <div className="space-y-2">
-                            {todayCompleted.map(task => (
-                                <div key={task.id} className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50/50 border border-emerald-100">
-                                    <div className="w-5 h-5 rounded bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                                        <Check className="w-3.5 h-3.5" />
-                                    </div>
-                                    <span className="text-sm flex-1 line-through text-muted-foreground">{task.title}</span>
-                                    {task.actual_min != null && (
-                                        <span className="text-xs text-muted-foreground">
-                                            {task.actual_min}m
-                                            {task.estimate_min != null && (
-                                                <span className={task.actual_min <= task.estimate_min ? ' text-emerald-600' : ' text-amber-600'}>
-                                                    {' '}({task.estimate_min}m est)
-                                                </span>
-                                            )}
-                                        </span>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )
-            })()}
-
-            {/* ─── 구분선 ─── */}
-            <div className="relative my-8">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
-                <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-3 text-muted-foreground font-medium tracking-wider">Plans & Projects</span>
-                </div>
+            {/* ═══ 3-Tier 탭 ═══ */}
+            <div className="flex items-center gap-1 border-b">
+                {[
+                    { level: 1 as TierLevel, icon: Layers, label: nav.track === 'projects' ? 'Projects' : 'Plans' },
+                    { level: 2 as TierLevel, icon: Target, label: 'Goals' },
+                    { level: 3 as TierLevel, icon: ListTodo, label: 'Tasks' },
+                ].map(tab => {
+                    const isActive = nav.level === tab.level
+                    const isDisabled = tab.level === 2 && !nav.selectedParentId
+                        || tab.level === 3 && !nav.selectedGoalId
+                    return (
+                        <button
+                            key={tab.level}
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => {
+                                if (tab.level === 1) navigateTo(1)
+                                else if (tab.level === 2 && nav.selectedParentId) setNav(p => ({ ...p, level: 2, selectedGoalId: null, goalTitle: null }))
+                                else if (tab.level === 3 && nav.selectedGoalId) setNav(p => ({ ...p, level: 3 }))
+                            }}
+                            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer ${isActive
+                                    ? 'border-primary text-primary'
+                                    : isDisabled
+                                        ? 'border-transparent text-muted-foreground/40 cursor-not-allowed'
+                                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30'
+                                }`}
+                        >
+                            <tab.icon className="w-4 h-4" />
+                            {tab.label}
+                        </button>
+                    )
+                })}
             </div>
 
-            {/* Draggable Sections */}
-            {sectionOrder.map(sectionId => sectionRenderers[sectionId]?.())}
+            {/* ═══ Kanban 보드 ═══ */}
+            <div className="flex gap-4 overflow-x-auto pb-4 min-h-[500px]">
+                {nav.level === 1 && renderLevel1()}
+                {nav.level === 2 && renderLevel2()}
+                {nav.level === 3 && renderLevel3()}
+            </div>
 
-            {/* ─── 구분선: Today Completed ─── */}
-            {
-                (completedTodayPlans.length > 0 || completedTodayProjects.length > 0) && (
-                    <>
-                        <div className="relative my-8">
-                            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
-                            <div className="relative flex justify-center text-xs uppercase">
-                                <span className="bg-background px-3 text-muted-foreground font-medium tracking-wider">Today Completed</span>
+            {/* ═══ Today Completed (Level 1에서만 표시) ═══ */}
+            {nav.level === 1 && todayCompleted.length > 0 && (
+                <div className="mt-6 border-t pt-6">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Check className="w-5 h-5 text-emerald-500" />
+                        <h3 className="text-lg font-semibold">Today Completed</h3>
+                        <Badge variant="secondary">{todayCompleted.length}</Badge>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {todayCompleted.map(task => (
+                            <div key={task.id} className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50/50 border border-emerald-100">
+                                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                                <span className="text-sm flex-1 line-through text-muted-foreground truncate">{task.title}</span>
+                                {task.actual_min != null && (
+                                    <span className="text-xs text-muted-foreground whitespace-nowrap">{task.actual_min}m</span>
+                                )}
                             </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* ═══ Side Panel ═══ */}
+            {sidePanelItem && (
+                <div className="fixed inset-0 z-50 flex">
+                    <div className="flex-1 bg-black/30" onClick={() => setSidePanelItemId(null)} />
+                    <div className="w-[420px] bg-background border-l shadow-2xl overflow-y-auto p-6 animate-in slide-in-from-right duration-200">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-semibold">{sidePanelItem.title}</h3>
+                            <button type="button" onClick={() => setSidePanelItemId(null)} className="p-1 rounded hover:bg-muted cursor-pointer">
+                                <X className="w-5 h-5" />
+                            </button>
                         </div>
 
-                        <div className="space-y-3">
-                            {completedTodayPlans.map(plan => {
-                                const dp = getPlanDetailPlan(plan.id)
-                                const doneCount = dp.sub_tasks.filter(t => t.done).length
+                        {/* 상태 */}
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs text-muted-foreground uppercase tracking-wider">Status</label>
+                                <div className="flex gap-2 mt-1.5 flex-wrap">
+                                    {(['backlog', 'active', 'blocked', 'done'] as const).map(s => (
+                                        <button
+                                            key={s}
+                                            type="button"
+                                            onClick={() => void updateItem(sidePanelItem.id, { status: s }).catch(e => alert(e instanceof Error ? e.message : 'Error'))}
+                                            className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${sidePanelItem.status === s
+                                                    ? s === 'done' ? 'bg-emerald-500 text-white'
+                                                        : s === 'active' ? 'bg-blue-500 text-white'
+                                                            : s === 'blocked' ? 'bg-red-500 text-white'
+                                                                : 'bg-gray-500 text-white'
+                                                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                                }`}
+                                        >
+                                            {s}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* 시간 정보 */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="p-3 rounded-lg bg-muted/50">
+                                    <div className="text-xs text-muted-foreground">Estimate</div>
+                                    <div className="text-lg font-semibold">{sidePanelItem.estimate_min ?? '-'}m</div>
+                                </div>
+                                <div className="p-3 rounded-lg bg-muted/50">
+                                    <div className="text-xs text-muted-foreground">Actual</div>
+                                    <div className="text-lg font-semibold">{sidePanelItem.actual_min ?? '-'}m</div>
+                                </div>
+                            </div>
+
+                            {/* 타임라인 */}
+                            {sidePanelItem.started_at && (
+                                <div className="text-xs text-muted-foreground space-y-1">
+                                    <div>Started: {new Date(sidePanelItem.started_at).toLocaleString('ko-KR')}</div>
+                                    {sidePanelItem.completed_at && (
+                                        <div>Completed: {new Date(sidePanelItem.completed_at).toLocaleString('ko-KR')}</div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* 삭제 */}
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                className="w-full mt-4"
+                                onClick={() => { void removeItem(sidePanelItem.id); setSidePanelItemId(null) }}
+                            >
+                                Delete Task
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+
+    // ═══════════════════════════════════════
+    // Level 1: Projects 또는 Plans 목록
+    // ═══════════════════════════════════════
+    function renderLevel1() {
+        if (nav.track === 'projects') {
+            const columns = KANBAN_COLUMNS.level1
+            return columns.map(col => {
+                const items = projects.filter(p => p.status === col.key)
+                return (
+                    <div key={col.key} className={`flex-1 min-w-[280px] rounded-xl border ${col.color} ${col.bg}`}>
+                        <div className={`${col.headerBg} text-white rounded-t-xl px-4 py-2.5 flex items-center justify-between`}>
+                            <span className="text-sm font-semibold">{col.label}</span>
+                            <Badge className="bg-white/20 text-white hover:bg-white/30">{items.length}</Badge>
+                        </div>
+                        <div className="p-3 space-y-2">
+                            {items.map(project => {
+                                const projectTasks = allItems.filter(i => i.project_id === project.id && !i.deleted_at)
+                                const doneTasks = projectTasks.filter(i => i.status === 'done')
+                                const doneWeight = doneTasks.reduce((s, i) => s + (i.estimate_min ?? 1), 0)
+                                const totalWeight = projectTasks.reduce((s, i) => s + (i.estimate_min ?? 1), 0)
+                                const progress = totalWeight > 0 ? Math.round((doneWeight / totalWeight) * 100) : 0
                                 return (
-                                    <Card key={plan.id} className="border-green-200 bg-green-50/20 opacity-80">
-                                        <CardContent className="p-4">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <Check className="w-5 h-5 text-green-600 shrink-0" />
-                                                    <div>
-                                                        <div className="font-medium text-sm">{plan.title}</div>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <Badge variant="outline" className="text-xs capitalize">{plan.plan_type}</Badge>
-                                                            <Badge className="text-xs bg-green-100 text-green-700 border-green-200">completed</Badge>
-                                                            {dp.sub_tasks.length > 0 && (
-                                                                <span className="text-xs text-muted-foreground">{doneCount}/{dp.sub_tasks.length} tasks</span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <span className="text-xs text-muted-foreground">
-                                                    {new Date(plan.updated_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
+                                    <Card
+                                        key={project.id}
+                                        className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-400"
+                                        onClick={() => navigateTo(2, project.id, project.repo_name ?? project.id)}
+                                    >
+                                        <CardContent className="p-3">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <GitBranch className="w-4 h-4 text-muted-foreground shrink-0" />
+                                                <span className="font-medium text-sm truncate">{project.repo_name}</span>
                                             </div>
+                                            {projectTasks.length > 0 && (
+                                                <div className="flex items-center gap-2">
+                                                    <Progress value={progress} className="h-1.5 flex-1" />
+                                                    <span className="text-xs text-muted-foreground">{doneTasks.length}/{projectTasks.length}</span>
+                                                </div>
+                                            )}
                                         </CardContent>
                                     </Card>
                                 )
                             })}
+                            {items.length === 0 && (
+                                <div className="text-center text-sm text-muted-foreground py-8 opacity-50">
+                                    No items
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )
+            })
+        }
 
-                            {completedTodayProjects.map(project => (
-                                <Card key={project.id} className="border-green-200 bg-green-50/20 opacity-80">
-                                    <CardContent className="p-4">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <Check className="w-5 h-5 text-green-600 shrink-0" />
-                                                <div>
-                                                    <div className="font-medium text-sm flex items-center gap-1">
-                                                        <span className="text-muted-foreground">{project.repo_full_name.split('/')[0]}/</span>
-                                                        <span style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }} className="dark:!bg-[#7f1d1d33] dark:!text-[#fca5a5]">{project.repo_full_name.split('/')[1]}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        {project.language && <Badge variant="outline" className="text-xs">{project.language}</Badge>}
-                                                        <Badge className="text-xs bg-green-100 text-green-700 border-green-200">completed</Badge>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <span className="text-xs text-muted-foreground">
-                                                {new Date(project.updated_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
+        // Plans 트랙 — Level 1
+        const plansByStatus = {
+            active: plans.filter(p => p.status === 'active'),
+            done: plans.filter(p => p.status === 'done'),
+            deferred: plans.filter(p => p.status === 'deferred'),
+        }
+        const planColumns = [
+            { key: 'active' as const, label: 'Active', color: 'border-blue-400', bg: 'bg-blue-50/30', headerBg: 'bg-blue-500' },
+            { key: 'done' as const, label: 'Done', color: 'border-emerald-400', bg: 'bg-emerald-50/30', headerBg: 'bg-emerald-500' },
+            { key: 'deferred' as const, label: 'Deferred', color: 'border-gray-300', bg: 'bg-gray-50/20', headerBg: 'bg-gray-400' },
+        ]
+        return planColumns.map(col => {
+            const items = plansByStatus[col.key] || []
+            return (
+                <div key={col.key} className={`flex-1 min-w-[280px] rounded-xl border ${col.color} ${col.bg}`}>
+                    <div className={`${col.headerBg} text-white rounded-t-xl px-4 py-2.5 flex items-center justify-between`}>
+                        <span className="text-sm font-semibold">{col.label}</span>
+                        <Badge className="bg-white/20 text-white hover:bg-white/30">{items.length}</Badge>
+                    </div>
+                    <div className="p-3 space-y-2">
+                        {items.map(plan => (
+                            <Card
+                                key={plan.id}
+                                className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-purple-400"
+                                onClick={() => navigateTo(2, plan.id, plan.title)}
+                            >
+                                <CardContent className="p-3">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <FileText className="w-4 h-4 text-purple-500 shrink-0" />
+                                        <span className="font-medium text-sm truncate">{plan.title}</span>
+                                    </div>
+                                    {plan.description && (
+                                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{plan.description}</p>
+                                    )}
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <Badge variant="outline" className="text-xs">{plan.plan_type}</Badge>
+                                        {plan.due_at && (
+                                            <span className="text-xs text-muted-foreground">{new Date(plan.due_at).toLocaleDateString('ko-KR')}</span>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                        {items.length === 0 && (
+                            <div className="text-center text-sm text-muted-foreground py-8 opacity-50">
+                                No items
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )
+        })
+    }
+
+    // ═══════════════════════════════════════
+    // Level 2: Goals (Project 또는 Plan 하위)
+    // ═══════════════════════════════════════
+    function renderLevel2() {
+        const columns = KANBAN_COLUMNS.level2
+        return columns.map(col => {
+            const items = goals.filter(g => g.status === col.key)
+            return (
+                <div key={col.key} className={`flex-1 min-w-[260px] rounded-xl border ${col.color} ${col.bg}`}>
+                    <div className={`${col.headerBg} text-white rounded-t-xl px-4 py-2.5 flex items-center justify-between`}>
+                        <span className="text-sm font-semibold">{col.label}</span>
+                        <Badge className="bg-white/20 text-white hover:bg-white/30">{items.length}</Badge>
+                    </div>
+                    <div className="p-3 space-y-2">
+                        {items.map(goal => {
+                            const tasks = allItems.filter(i => i.goal_id === goal.id && !i.deleted_at)
+                            const done = tasks.filter(i => i.status === 'done')
+                            const doneWeight = done.reduce((s, i) => s + (i.estimate_min ?? 1), 0)
+                            const totalWeight = tasks.reduce((s, i) => s + (i.estimate_min ?? 1), 0)
+                            const progress = totalWeight > 0 ? Math.round((doneWeight / totalWeight) * 100) : 0
+                            return (
+                                <Card
+                                    key={goal.id}
+                                    className="cursor-pointer hover:shadow-md transition-shadow group"
+                                    onClick={() => navigateTo(3, goal.id, goal.title)}
+                                >
+                                    <CardContent className="p-3">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Target className="w-4 h-4 text-amber-500 shrink-0" />
+                                            <span className="font-medium text-sm truncate flex-1">{goal.title}</span>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); void removeGoal(goal.id) }}
+                                                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
                                         </div>
+                                        {tasks.length > 0 && (
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <Progress value={progress} className="h-1.5 flex-1" />
+                                                <span className="text-xs text-muted-foreground">{done.length}/{tasks.length}</span>
+                                            </div>
+                                        )}
+                                        {goal.description && (
+                                            <p className="text-xs text-muted-foreground line-clamp-1 mt-1">{goal.description}</p>
+                                        )}
                                     </CardContent>
                                 </Card>
-                            ))}
-                        </div>
-                    </>
-                )
-            }
+                            )
+                        })}
 
-            {/* Upcoming Deadlines */}
-            {
-                deadlines.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <AlertTriangle className="w-5 h-5 text-orange-500" />
-                                Upcoming Deadlines
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-2">
-                                {deadlines.map(d => (
-                                    <div key={d.id} className="flex items-center justify-between p-2 bg-orange-50 rounded">
-                                        <span className="text-sm font-medium">{d.milestone}</span>
-                                        <div className="flex items-center gap-2">
-                                            <Badge variant="outline">{new Date(d.deadline_at).toLocaleDateString()}</Badge>
-                                            <Badge variant={d.risk_score > 70 ? 'destructive' : 'outline'}>
-                                                Risk: {d.risk_score}%
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                ))}
+                        {/* 새 Goal 추가 (Backlog 컬럼에만) */}
+                        {col.key === 'backlog' && (
+                            <div className="pt-2">
+                                <form
+                                    onSubmit={(e) => {
+                                        e.preventDefault()
+                                        if (!newGoalTitle.trim()) return
+                                        void addGoal({
+                                            title: newGoalTitle.trim(),
+                                            ...(nav.track === 'projects'
+                                                ? { project_id: nav.selectedParentId }
+                                                : { plan_id: nav.selectedParentId }),
+                                        })
+                                        setNewGoalTitle('')
+                                    }}
+                                    className="flex gap-1"
+                                >
+                                    <input
+                                        type="text"
+                                        value={newGoalTitle}
+                                        onChange={e => setNewGoalTitle(e.target.value)}
+                                        placeholder="+ New Goal"
+                                        className="flex-1 px-2 py-1.5 text-sm bg-white/50 border rounded-md placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                                    />
+                                    <Button type="submit" size="sm" variant="ghost" disabled={!newGoalTitle.trim()}>
+                                        <Plus className="w-4 h-4" />
+                                    </Button>
+                                </form>
                             </div>
-                        </CardContent>
-                    </Card>
-                )
-            }
-        </div >
-    )
+                        )}
+                    </div>
+                </div>
+            )
+        })
+    }
+
+    // ═══════════════════════════════════════
+    // Level 3: Tasks (Goal 하위 WorkItems)
+    // ═══════════════════════════════════════
+    function renderLevel3() {
+        const columns = KANBAN_COLUMNS.level3
+        return columns.map(col => {
+            const items = goalItems.filter(i => i.status === col.key)
+            return (
+                <div key={col.key} className={`flex-1 min-w-[240px] rounded-xl border ${col.color} ${col.bg}`}>
+                    <div className={`${col.headerBg} text-white rounded-t-xl px-4 py-2.5 flex items-center justify-between`}>
+                        <span className="text-sm font-semibold">{col.label}</span>
+                        <Badge className="bg-white/20 text-white hover:bg-white/30">{items.length}</Badge>
+                    </div>
+                    <div className="p-3 space-y-2">
+                        {items.map(task => (
+                            <Card
+                                key={task.id}
+                                className="cursor-pointer hover:shadow-md transition-shadow group"
+                                onClick={() => setSidePanelItemId(task.id)}
+                            >
+                                <CardContent className="p-3">
+                                    <div className="flex items-center gap-2">
+                                        {task.status === 'done' ? (
+                                            <div className="w-4 h-4 rounded bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                                                <Check className="w-3 h-3" />
+                                            </div>
+                                        ) : task.status === 'blocked' ? (
+                                            <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                                        ) : (
+                                            <div className="w-4 h-4 rounded border border-muted-foreground/30 shrink-0" />
+                                        )}
+                                        <span className={`text-sm flex-1 truncate ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
+                                            {task.title}
+                                        </span>
+                                    </div>
+                                    {task.estimate_min && (
+                                        <div className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
+                                            <span>{task.estimate_min}m est</span>
+                                            {task.actual_min != null && (
+                                                <span className={task.actual_min <= task.estimate_min ? 'text-emerald-600' : 'text-amber-600'}>
+                                                    · {task.actual_min}m actual
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        ))}
+
+                        {/* 새 Task 추가 (Backlog 컬럼에만) */}
+                        {col.key === 'backlog' && (
+                            <div className="pt-2">
+                                <form
+                                    onSubmit={(e) => {
+                                        e.preventDefault()
+                                        if (!newTaskTitle.trim() || !nav.selectedGoalId) return
+                                        void addItem({
+                                            title: newTaskTitle.trim(),
+                                            goal_id: nav.selectedGoalId,
+                                            project_id: nav.track === 'projects' ? nav.selectedParentId : undefined,
+                                            status: 'backlog',
+                                        })
+                                        setNewTaskTitle('')
+                                    }}
+                                    className="flex gap-1"
+                                >
+                                    <input
+                                        type="text"
+                                        value={newTaskTitle}
+                                        onChange={e => setNewTaskTitle(e.target.value)}
+                                        placeholder="+ New Task"
+                                        className="flex-1 px-2 py-1.5 text-sm bg-white/50 border rounded-md placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                                    />
+                                    <Button type="submit" size="sm" variant="ghost" disabled={!newTaskTitle.trim()}>
+                                        <Plus className="w-4 h-4" />
+                                    </Button>
+                                </form>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )
+        })
+    }
 }

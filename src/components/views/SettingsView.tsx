@@ -321,10 +321,16 @@ export function SettingsView() {
                                                         const delta = current - defaultVal
                                                         const isModified = delta !== 0
                                                         return (
-                                                            <span className={`text-xs w-7 text-right tabular-nums font-medium ${isModified ? 'text-red-500' : 'text-foreground'
-                                                                }`}>
-                                                                {isModified && delta > 0 ? '+' : ''}{isModified ? delta : current}
-                                                            </span>
+                                                            <div className="flex items-center gap-1 justify-end min-w-[36px]">
+                                                                <span className="text-xs tabular-nums font-semibold text-foreground">
+                                                                    {defaultVal}
+                                                                </span>
+                                                                {isModified && (
+                                                                    <span className={`text-[10px] tabular-nums font-bold ${delta > 0 ? 'text-red-500 dark:text-red-400' : 'text-blue-500 dark:text-blue-400'}`}>
+                                                                        {delta > 0 ? '+' : ''}{delta}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         )
                                                     })()}
                                                 </div>

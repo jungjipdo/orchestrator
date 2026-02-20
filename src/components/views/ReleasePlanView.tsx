@@ -59,6 +59,8 @@ export function ReleasePlanView() {
     // ─── 인라인 삭제 모드 ───
     const [deleteMode, setDeleteMode] = useState(false)
     const [deleteTargets, setDeleteTargets] = useState<Set<string>>(new Set())
+    // ─── Active 카드 접힘 토글 ───
+    const [expandedActiveIds, setExpandedActiveIds] = useState<Set<string>>(new Set())
     // ─── Optimistic 드래그 상태 ───
     const [localPlanOverrides, setLocalPlanOverrides] = useState<Record<string, string>>({})
     const [localProjectOverrides, setLocalProjectOverrides] = useState<Record<string, string>>({})
@@ -278,34 +280,67 @@ export function ReleasePlanView() {
         await updatePlan(planId, { metadata: meta } as Record<string, unknown>)
     }, [plans, updatePlan])
 
+    // ─── Project Detail Plan Helpers ───
+    const getProjectDetailPlan = useCallback((projectId: string): DetailPlan => {
+        const project = projects.find(p => p.id === projectId)
+        const meta = (project as unknown as Record<string, unknown>)?.metadata as Record<string, unknown> | undefined
+        const dp = meta?.detail_plan as DetailPlan | undefined
+        return dp ?? { sub_tasks: [], notes: '' }
+    }, [projects])
+
+    const saveProjectDetailPlan = useCallback(async (projectId: string, dp: DetailPlan) => {
+        const project = projects.find(p => p.id === projectId)
+        if (!project) return
+        const meta = { ...((project as unknown as Record<string, unknown>).metadata as Record<string, unknown> ?? {}), detail_plan: dp }
+        await updateProjectStatus(projectId, { metadata: meta } as Record<string, unknown>)
+    }, [projects, updateProjectStatus])
+
+    const getEntityDetailPlan = useCallback((entityId: string, entityType: 'plan' | 'project'): DetailPlan => {
+        return entityType === 'plan' ? getPlanDetailPlan(entityId) : getProjectDetailPlan(entityId)
+    }, [getPlanDetailPlan, getProjectDetailPlan])
+
+    const saveEntityDetailPlan = useCallback(async (entityId: string, entityType: 'plan' | 'project', dp: DetailPlan) => {
+        if (entityType === 'plan') await savePlanDetailPlan(entityId, dp)
+        else await saveProjectDetailPlan(entityId, dp)
+    }, [savePlanDetailPlan, saveProjectDetailPlan])
+
     const addSubTask = useCallback(async (entityId: string, entityType: 'plan' | 'project') => {
         const text = (subTaskInputs[entityId] ?? '').trim()
         if (!text) return
         const newTask: SubTask = { id: crypto.randomUUID(), title: text, done: false }
-
-        if (entityType === 'plan') {
-            const dp = getPlanDetailPlan(entityId)
-            dp.sub_tasks.push(newTask)
-            await savePlanDetailPlan(entityId, dp)
-        }
+        const dp = getEntityDetailPlan(entityId, entityType)
+        dp.sub_tasks.push(newTask)
+        await saveEntityDetailPlan(entityId, entityType, dp)
         setSubTaskInputs(prev => ({ ...prev, [entityId]: '' }))
-    }, [subTaskInputs, getPlanDetailPlan, savePlanDetailPlan])
+    }, [subTaskInputs, getEntityDetailPlan, saveEntityDetailPlan])
 
     const toggleSubTask = useCallback(async (entityId: string, taskId: string, entityType: 'plan' | 'project') => {
-        if (entityType === 'plan') {
-            const dp = getPlanDetailPlan(entityId)
-            dp.sub_tasks = dp.sub_tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t)
-            await savePlanDetailPlan(entityId, dp)
-        }
-    }, [getPlanDetailPlan, savePlanDetailPlan])
+        const dp = getEntityDetailPlan(entityId, entityType)
+        dp.sub_tasks = dp.sub_tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t)
+        await saveEntityDetailPlan(entityId, entityType, dp)
+    }, [getEntityDetailPlan, saveEntityDetailPlan])
 
     const removeSubTask = useCallback(async (entityId: string, taskId: string, entityType: 'plan' | 'project') => {
-        if (entityType === 'plan') {
-            const dp = getPlanDetailPlan(entityId)
-            dp.sub_tasks = dp.sub_tasks.filter(t => t.id !== taskId)
-            await savePlanDetailPlan(entityId, dp)
+        const dp = getEntityDetailPlan(entityId, entityType)
+        dp.sub_tasks = dp.sub_tasks.filter(t => t.id !== taskId)
+        await saveEntityDetailPlan(entityId, entityType, dp)
+    }, [getEntityDetailPlan, saveEntityDetailPlan])
+
+    // ─── Active 카드 토글 ───
+    const toggleActiveExpand = useCallback((id: string, e: React.MouseEvent) => {
+        if ((e.target as HTMLElement).closest('button, a, input')) return
+        if (mouseDownPos.current) {
+            const dx = Math.abs(e.clientX - mouseDownPos.current.x)
+            const dy = Math.abs(e.clientY - mouseDownPos.current.y)
+            if (dx > 5 || dy > 5) return
         }
-    }, [getPlanDetailPlan, savePlanDetailPlan])
+        setExpandedActiveIds(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
+    }, [])
 
     if (loading) {
         return (
@@ -323,7 +358,7 @@ export function ReleasePlanView() {
 
     // ─── Detail Panel (공유) ───
     const renderDetailPanel = (entityId: string, entityType: 'plan' | 'project') => {
-        const dp = entityType === 'plan' ? getPlanDetailPlan(entityId) : { sub_tasks: [], notes: '' }
+        const dp = getEntityDetailPlan(entityId, entityType)
         const doneCount = dp.sub_tasks.filter(t => t.done).length
         const progress = dp.sub_tasks.length > 0 ? Math.round((doneCount / dp.sub_tasks.length) * 100) : 0
 
@@ -366,27 +401,25 @@ export function ReleasePlanView() {
                 </div>
 
                 {/* Add Sub Task */}
-                {entityType === 'plan' && (
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="text"
-                            value={subTaskInputs[entityId] ?? ''}
-                            onChange={(e) => setSubTaskInputs(prev => ({ ...prev, [entityId]: e.target.value }))}
-                            onKeyDown={(e) => e.key === 'Enter' && void addSubTask(entityId, entityType)}
-                            placeholder="서브태스크 추가..."
-                            className="flex-1 text-sm px-2 py-1 rounded border border-border bg-transparent focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0"
-                            onClick={() => void addSubTask(entityId, entityType)}
-                            disabled={!(subTaskInputs[entityId] ?? '').trim()}
-                        >
-                            <Plus className="w-4 h-4" />
-                        </Button>
-                    </div>
-                )}
+                <div className="flex items-center gap-2">
+                    <input
+                        type="text"
+                        value={subTaskInputs[entityId] ?? ''}
+                        onChange={(e) => setSubTaskInputs(prev => ({ ...prev, [entityId]: e.target.value }))}
+                        onKeyDown={(e) => e.key === 'Enter' && void addSubTask(entityId, entityType)}
+                        placeholder="서브태스크 추가..."
+                        className="flex-1 text-sm px-2 py-1 rounded border border-border bg-transparent focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        onClick={() => void addSubTask(entityId, entityType)}
+                        disabled={!(subTaskInputs[entityId] ?? '').trim()}
+                    >
+                        <Plus className="w-4 h-4" />
+                    </Button>
+                </div>
             </div>
         )
     }
@@ -643,7 +676,7 @@ export function ReleasePlanView() {
                         }`}>
                         {/* Work Items 기반 릴리스 그룹 - 이제 개별 Project 카드 내부로 이동됨 */}
 
-                        {/* Active Plans — 서브태스크 인라인 표시 */}
+                        {/* Active Plans — 서브태스크 인라인 표시 (접힘 토글) */}
                         {activePlans.map(plan => {
                             const PlanIcon = plan.plan_type === 'event' ? Calendar
                                 : plan.plan_type === 'project' ? GitBranch
@@ -652,13 +685,16 @@ export function ReleasePlanView() {
                             const activeTasks = dp.sub_tasks.filter(t => !t.done)
                             const doneTasks = dp.sub_tasks.filter(t => t.done)
                             const progress = dp.sub_tasks.length > 0 ? Math.round((doneTasks.length / dp.sub_tasks.length) * 100) : 0
+                            const isExpanded = expandedActiveIds.has(plan.id)
                             return (
                                 <Card
                                     key={plan.id}
-                                    className="border-blue-200 bg-blue-50/30 cursor-grab"
+                                    className="border-blue-200 bg-blue-50/30 cursor-pointer"
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, plan.id, 'plan')}
                                     onDragEnd={handleDragEnd}
+                                    onMouseDown={handleCardMouseDown}
+                                    onMouseUp={(e) => toggleActiveExpand(plan.id, e)}
                                 >
                                     <CardContent className="p-4">
                                         <div className="flex items-center gap-3 min-w-0">
@@ -682,111 +718,92 @@ export function ReleasePlanView() {
                                                             {plan.priority}
                                                         </Badge>
                                                     )}
+                                                    {dp.sub_tasks.length > 0 && (
+                                                        <span className="text-xs text-muted-foreground">{doneTasks.length}/{dp.sub_tasks.length}</span>
+                                                    )}
                                                 </div>
+                                            </div>
+                                            <div className="shrink-0">
+                                                {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                                             </div>
                                         </div>
 
-                                        {/* Sub Tasks 인라인 표시 */}
-                                        {dp.sub_tasks.length > 0 && (
-                                            <div className="mt-4 space-y-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Progress value={progress} className="h-2 flex-1" />
-                                                    <span className="text-xs text-muted-foreground font-medium">{doneTasks.length}/{dp.sub_tasks.length}</span>
-                                                </div>
-
-                                                {/* 활성 태스크 */}
-                                                {activeTasks.length > 0 && (
-                                                    <div className="space-y-1">
-                                                        {activeTasks.map(task => (
-                                                            <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-white/60 group">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void toggleSubTask(plan.id, task.id, 'plan')}
-                                                                    className="w-4 h-4 rounded border border-muted-foreground/30 hover:border-primary flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-                                                                />
-                                                                <span className="text-sm flex-1">{task.title}</span>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void removeSubTask(plan.id, task.id, 'plan')}
-                                                                    className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
-                                                                >
-                                                                    <X className="w-3 h-3" />
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-
-                                                {/* 완료된 태스크 */}
-                                                {doneTasks.length > 0 && (
-                                                    <div className="space-y-1">
-                                                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Completed</div>
-                                                        {doneTasks.map(task => (
-                                                            <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-green-50/50 group">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void toggleSubTask(plan.id, task.id, 'plan')}
-                                                                    className="w-4 h-4 rounded bg-green-500 border-green-500 text-white flex items-center justify-center shrink-0 cursor-pointer"
-                                                                >
-                                                                    <Check className="w-3 h-3" />
-                                                                </button>
-                                                                <span className="text-sm flex-1 line-through text-muted-foreground">{task.title}</span>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void removeSubTask(plan.id, task.id, 'plan')}
-                                                                    className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
-                                                                >
-                                                                    <X className="w-3 h-3" />
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                        {/* 접힘 시 progress bar만 */}
+                                        {!isExpanded && dp.sub_tasks.length > 0 && (
+                                            <div className="mt-3">
+                                                <Progress value={progress} className="h-2" />
                                             </div>
                                         )}
 
-                                        {/* 서브태스크 추가 */}
-                                        <div className="flex items-center gap-2 mt-3">
-                                            <input
-                                                type="text"
-                                                value={subTaskInputs[plan.id] ?? ''}
-                                                onChange={(e) => setSubTaskInputs(prev => ({ ...prev, [plan.id]: e.target.value }))}
-                                                onKeyDown={(e) => e.key === 'Enter' && void addSubTask(plan.id, 'plan')}
-                                                placeholder="서브태스크 추가..."
-                                                className="flex-1 text-sm px-3 py-1.5 rounded border border-border bg-white/80 focus:outline-none focus:ring-1 focus:ring-primary"
-                                            />
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="h-7 w-7 p-0"
-                                                onClick={() => void addSubTask(plan.id, 'plan')}
-                                                disabled={!(subTaskInputs[plan.id] ?? '').trim()}
-                                            >
-                                                <Plus className="w-4 h-4" />
-                                            </Button>
-                                        </div>
+                                        {/* 펼침 시 상세 */}
+                                        {isExpanded && (
+                                            <>
+                                                {dp.sub_tasks.length > 0 && (
+                                                    <div className="mt-4 space-y-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <Progress value={progress} className="h-2 flex-1" />
+                                                            <span className="text-xs text-muted-foreground font-medium">{doneTasks.length}/{dp.sub_tasks.length}</span>
+                                                        </div>
+                                                        {activeTasks.length > 0 && (
+                                                            <div className="space-y-1">
+                                                                {activeTasks.map(task => (
+                                                                    <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-white/60 group">
+                                                                        <button type="button" onClick={() => void toggleSubTask(plan.id, task.id, 'plan')} className="w-4 h-4 rounded border border-muted-foreground/30 hover:border-primary flex items-center justify-center shrink-0 cursor-pointer transition-colors" />
+                                                                        <span className="text-sm flex-1">{task.title}</span>
+                                                                        <button type="button" onClick={() => void removeSubTask(plan.id, task.id, 'plan')} className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"><X className="w-3 h-3" /></button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        {doneTasks.length > 0 && (
+                                                            <div className="space-y-1">
+                                                                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Completed</div>
+                                                                {doneTasks.map(task => (
+                                                                    <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-green-50/50 group">
+                                                                        <button type="button" onClick={() => void toggleSubTask(plan.id, task.id, 'plan')} className="w-4 h-4 rounded bg-green-500 border-green-500 text-white flex items-center justify-center shrink-0 cursor-pointer"><Check className="w-3 h-3" /></button>
+                                                                        <span className="text-sm flex-1 line-through text-muted-foreground">{task.title}</span>
+                                                                        <button type="button" onClick={() => void removeSubTask(plan.id, task.id, 'plan')} className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"><X className="w-3 h-3" /></button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center gap-2 mt-3">
+                                                    <input type="text" value={subTaskInputs[plan.id] ?? ''} onChange={(e) => setSubTaskInputs(prev => ({ ...prev, [plan.id]: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && void addSubTask(plan.id, 'plan')} placeholder="서브태스크 추가..." className="flex-1 text-sm px-3 py-1.5 rounded border border-border bg-white/80 focus:outline-none focus:ring-1 focus:ring-primary" />
+                                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => void addSubTask(plan.id, 'plan')} disabled={!(subTaskInputs[plan.id] ?? '').trim()}><Plus className="w-4 h-4" /></Button>
+                                                </div>
+                                            </>
+                                        )}
                                     </CardContent>
                                 </Card>
                             )
                         })}
 
-                        {/* Active Projects */}
+                        {/* Active Projects — 접힘 토글 + 서브태스크 */}
                         {activeProjects.map(project => {
                             const projectItems = allItems.filter(i => i.project_id === project.id)
-                            const activeTasks = projectItems.filter(i => i.status !== 'done')
-                            const doneTasks = projectItems.filter(i => i.status === 'done')
-                            // 가중치 기반 진척률: estimate_min 합산 (없으면 1로 처리)
-                            const doneWeight = doneTasks.reduce((s, i) => s + (i.estimate_min ?? 1), 0)
+                            const projectActiveTasks = projectItems.filter(i => i.status !== 'done')
+                            const projectDoneTasks = projectItems.filter(i => i.status === 'done')
+                            const doneWeight = projectDoneTasks.reduce((s, i) => s + (i.estimate_min ?? 1), 0)
                             const totalWeight = projectItems.reduce((s, i) => s + (i.estimate_min ?? 1), 0)
-                            const progress = totalWeight > 0 ? Math.round((doneWeight / totalWeight) * 100) : 0
+                            const wiProgress = totalWeight > 0 ? Math.round((doneWeight / totalWeight) * 100) : 0
+                            // metadata 기반 서브태스크
+                            const pdp = getProjectDetailPlan(project.id)
+                            const pdpDone = pdp.sub_tasks.filter(t => t.done)
+                            const pdpActive = pdp.sub_tasks.filter(t => !t.done)
+                            const totalTaskCount = projectItems.length + pdp.sub_tasks.length
+                            const isExpanded = expandedActiveIds.has(project.id)
 
                             return (
                                 <Card
                                     key={project.id}
-                                    className="border-green-200 bg-green-50/30 cursor-grab"
+                                    className="border-green-200 bg-green-50/30 cursor-pointer"
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, project.id, 'project')}
                                     onDragEnd={handleDragEnd}
+                                    onMouseDown={handleCardMouseDown}
+                                    onMouseUp={(e) => toggleActiveExpand(project.id, e)}
                                 >
                                     <CardContent className="p-4">
                                         <div className="flex items-center gap-3 min-w-0">
@@ -801,109 +818,103 @@ export function ReleasePlanView() {
                                                 <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                                     {project.language && <Badge variant="outline" className="text-xs">{project.language}</Badge>}
                                                     <Badge className="text-xs bg-green-100 text-green-700 border-green-200">Active</Badge>
+                                                    {totalTaskCount > 0 && (
+                                                        <span className="text-xs text-muted-foreground">{projectDoneTasks.length + pdpDone.length}/{totalTaskCount}</span>
+                                                    )}
                                                 </div>
+                                            </div>
+                                            <div className="shrink-0">
+                                                {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                                             </div>
                                         </div>
 
-                                        {/* Project Tasks 인라인 표시 */}
-                                        {projectItems.length > 0 && (
+                                        {/* 접힘 시 progress bar만 */}
+                                        {!isExpanded && totalTaskCount > 0 && (
+                                            <div className="mt-3">
+                                                <Progress value={wiProgress} className="h-2" />
+                                            </div>
+                                        )}
+
+                                        {/* 펼침 시 상세 */}
+                                        {isExpanded && (
                                             <div className="mt-4 space-y-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Progress value={progress} className="h-2 flex-1" />
-                                                    <span className="text-xs text-muted-foreground font-medium">{doneTasks.length}/{projectItems.length}</span>
-                                                </div>
-
-                                                {/* 활성 태스크 */}
-                                                {activeTasks.filter(t => t.status !== 'blocked').length > 0 && (
-                                                    <div className="space-y-1">
-                                                        {activeTasks.filter(t => t.status !== 'blocked').map(task => (
-                                                            <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-white/60 group">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void updateItem(task.id, { status: 'done' })}
-                                                                    className="w-4 h-4 rounded border border-muted-foreground/30 hover:border-primary flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-                                                                />
-                                                                <div className="flex flex-col flex-1">
-                                                                    <span className="text-sm">{task.title}</span>
-                                                                    {task.next_action && <span className="text-xs text-muted-foreground">{task.next_action}</span>}
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void updateItem(task.id, { status: 'blocked' }).catch(e => alert(e instanceof Error ? e.message : 'Error'))}
-                                                                    className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-red-500 transition-opacity cursor-pointer"
-                                                                    title="차단 표시"
-                                                                >
-                                                                    <AlertTriangle className="w-3 h-3" />
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void removeItem(task.id)}
-                                                                    className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
-                                                                >
-                                                                    <X className="w-3 h-3" />
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-
-                                                {/* 차단된 태스크 */}
-                                                {activeTasks.filter(t => t.status === 'blocked').length > 0 && (
-                                                    <div className="space-y-1">
-                                                        <div className="text-xs font-medium text-red-500 uppercase tracking-wider flex items-center gap-1">
-                                                            <AlertTriangle className="w-3 h-3" /> Blocked
+                                                {/* Work Items (Orchestration에서 추가된 것) */}
+                                                {projectItems.length > 0 && (
+                                                    <>
+                                                        <div className="flex items-center gap-2">
+                                                            <Progress value={wiProgress} className="h-2 flex-1" />
+                                                            <span className="text-xs text-muted-foreground font-medium">{projectDoneTasks.length}/{projectItems.length} items</span>
                                                         </div>
-                                                        {activeTasks.filter(t => t.status === 'blocked').map(task => (
-                                                            <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-red-50/50 group">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void updateItem(task.id, { status: 'active' })}
-                                                                    className="w-4 h-4 rounded border-2 border-red-400 text-red-500 flex items-center justify-center shrink-0 cursor-pointer hover:bg-red-100 transition-colors"
-                                                                    title="차단 해제 (active로 복귀)"
-                                                                >
-                                                                    <AlertTriangle className="w-2.5 h-2.5" />
-                                                                </button>
-                                                                <div className="flex flex-col flex-1">
-                                                                    <span className="text-sm text-red-700">{task.title}</span>
-                                                                    {task.next_action && <span className="text-xs text-red-400">{task.next_action}</span>}
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void removeItem(task.id)}
-                                                                    className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
-                                                                >
-                                                                    <X className="w-3 h-3" />
-                                                                </button>
+                                                        {projectActiveTasks.filter(t => t.status !== 'blocked').length > 0 && (
+                                                            <div className="space-y-1">
+                                                                {projectActiveTasks.filter(t => t.status !== 'blocked').map(task => (
+                                                                    <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-white/60 group">
+                                                                        <button type="button" onClick={() => void updateItem(task.id, { status: 'done' })} className="w-4 h-4 rounded border border-muted-foreground/30 hover:border-primary flex items-center justify-center shrink-0 cursor-pointer transition-colors" />
+                                                                        <div className="flex flex-col flex-1"><span className="text-sm">{task.title}</span>{task.next_action && <span className="text-xs text-muted-foreground">{task.next_action}</span>}</div>
+                                                                        <button type="button" onClick={() => void updateItem(task.id, { status: 'blocked' }).catch(e => alert(e instanceof Error ? e.message : 'Error'))} className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-red-500 transition-opacity cursor-pointer" title="차단 표시"><AlertTriangle className="w-3 h-3" /></button>
+                                                                        <button type="button" onClick={() => void removeItem(task.id)} className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"><X className="w-3 h-3" /></button>
+                                                                    </div>
+                                                                ))}
                                                             </div>
-                                                        ))}
-                                                    </div>
+                                                        )}
+                                                        {projectActiveTasks.filter(t => t.status === 'blocked').length > 0 && (
+                                                            <div className="space-y-1">
+                                                                <div className="text-xs font-medium text-red-500 uppercase tracking-wider flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Blocked</div>
+                                                                {projectActiveTasks.filter(t => t.status === 'blocked').map(task => (
+                                                                    <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-red-50/50 group">
+                                                                        <button type="button" onClick={() => void updateItem(task.id, { status: 'active' })} className="w-4 h-4 rounded border-2 border-red-400 text-red-500 flex items-center justify-center shrink-0 cursor-pointer hover:bg-red-100 transition-colors" title="차단 해제"><AlertTriangle className="w-2.5 h-2.5" /></button>
+                                                                        <div className="flex flex-col flex-1"><span className="text-sm text-red-700">{task.title}</span>{task.next_action && <span className="text-xs text-red-400">{task.next_action}</span>}</div>
+                                                                        <button type="button" onClick={() => void removeItem(task.id)} className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"><X className="w-3 h-3" /></button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        {projectDoneTasks.length > 0 && (
+                                                            <div className="space-y-1">
+                                                                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Completed (Items)</div>
+                                                                {projectDoneTasks.map(task => (
+                                                                    <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-green-50/50 group">
+                                                                        <button type="button" onClick={() => void updateItem(task.id, { status: 'backlog' })} className="w-4 h-4 rounded bg-green-500 border-green-500 text-white flex items-center justify-center shrink-0 cursor-pointer"><Check className="w-3 h-3" /></button>
+                                                                        <span className="text-sm flex-1 line-through text-muted-foreground">{task.title}</span>
+                                                                        <button type="button" onClick={() => void removeItem(task.id)} className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"><X className="w-3 h-3" /></button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </>
                                                 )}
 
-                                                {/* 완료된 태스크 */}
-                                                {doneTasks.length > 0 && (
-                                                    <div className="space-y-1">
-                                                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Completed</div>
-                                                        {doneTasks.map(task => (
-                                                            <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-green-50/50 group">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void updateItem(task.id, { status: 'backlog' })}
-                                                                    className="w-4 h-4 rounded bg-green-500 border-green-500 text-white flex items-center justify-center shrink-0 cursor-pointer"
-                                                                >
-                                                                    <Check className="w-3 h-3" />
-                                                                </button>
-                                                                <span className="text-sm flex-1 line-through text-muted-foreground">{task.title}</span>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void removeItem(task.id)}
-                                                                    className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
-                                                                >
-                                                                    <X className="w-3 h-3" />
-                                                                </button>
+                                                {/* metadata 기반 서브태스크 (수동 추가) */}
+                                                {pdp.sub_tasks.length > 0 && (
+                                                    <>
+                                                        {projectItems.length > 0 && <div className="border-t border-border/50 pt-2"><div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Sub Tasks</div></div>}
+                                                        {pdpActive.map(task => (
+                                                            <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-white/60 group">
+                                                                <button type="button" onClick={() => void toggleSubTask(project.id, task.id, 'project')} className="w-4 h-4 rounded border border-muted-foreground/30 hover:border-primary flex items-center justify-center shrink-0 cursor-pointer transition-colors" />
+                                                                <span className="text-sm flex-1">{task.title}</span>
+                                                                <button type="button" onClick={() => void removeSubTask(project.id, task.id, 'project')} className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"><X className="w-3 h-3" /></button>
                                                             </div>
                                                         ))}
-                                                    </div>
+                                                        {pdpDone.length > 0 && (
+                                                            <div className="space-y-1">
+                                                                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Completed (Sub)</div>
+                                                                {pdpDone.map(task => (
+                                                                    <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-green-50/50 group">
+                                                                        <button type="button" onClick={() => void toggleSubTask(project.id, task.id, 'project')} className="w-4 h-4 rounded bg-green-500 border-green-500 text-white flex items-center justify-center shrink-0 cursor-pointer"><Check className="w-3 h-3" /></button>
+                                                                        <span className="text-sm flex-1 line-through text-muted-foreground">{task.title}</span>
+                                                                        <button type="button" onClick={() => void removeSubTask(project.id, task.id, 'project')} className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"><X className="w-3 h-3" /></button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </>
                                                 )}
+
+                                                {/* 서브태스크 추가 (수동) */}
+                                                <div className="flex items-center gap-2">
+                                                    <input type="text" value={subTaskInputs[project.id] ?? ''} onChange={(e) => setSubTaskInputs(prev => ({ ...prev, [project.id]: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && void addSubTask(project.id, 'project')} placeholder="서브태스크 추가..." className="flex-1 text-sm px-3 py-1.5 rounded border border-border bg-white/80 focus:outline-none focus:ring-1 focus:ring-primary" />
+                                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => void addSubTask(project.id, 'project')} disabled={!(subTaskInputs[project.id] ?? '').trim()}><Plus className="w-4 h-4" /></Button>
+                                                </div>
                                             </div>
                                         )}
                                     </CardContent>

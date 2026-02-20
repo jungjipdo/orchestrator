@@ -19,6 +19,7 @@ export interface Project {
     language: string | null
     is_private: boolean
     status: 'backlog' | 'active' | 'archived' | 'completed'
+    metadata: Record<string, unknown>
     created_at: string
     updated_at: string
 }

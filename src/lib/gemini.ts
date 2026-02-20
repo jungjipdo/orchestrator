@@ -23,7 +23,7 @@ export interface ProjectContext {
     readme: string | null
     recentCommits: string[]
     recentChangedFiles?: string[]  // 최근 변경된 파일 목록
-    openIssues?: { number: number; title: string; body: string }[] // 열린 이슈 목록
+    openIssues?: { number: number; title: string; body: string; labels: string[] }[] // 열린 이슈 목록
     fetchedAt?: number             // 컨텍스트 수집 시점 (timestamp)
 }
 
@@ -75,7 +75,7 @@ ${context.readme ? `- README (excerpt):\n${context.readme.slice(0, 2000)}` : '- 
 ${commitList}
 ${changedFiles}
 ${context.openIssues && context.openIssues.length > 0
-                ? `- Open Issues (Use as secondary reference if relevant):\n${context.openIssues.map(i => `  - #${i.number} ${i.title}`).join('\n')}`
+                ? `- Open Issues (Use as secondary reference if relevant):\n${context.openIssues.map(i => `  - #${i.number} [${i.labels.join(', ')}] ${i.title}`).join('\n')}`
                 : '- Open Issues: none'
             }${freshnessNote}
 

@@ -128,7 +128,7 @@ export function AppLayout() {
             case 'active-task':
                 return <ActiveTaskView />
             case 'orchestration':
-                return <OrchestrationView />
+                return <OrchestrationView onNavigateToPlan={() => handleNavigate('release-plan')} />
             case 'log':
                 return <LogView />
             case 'settings':

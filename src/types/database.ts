@@ -28,7 +28,6 @@ export interface Database {
                 Row: {
                     id: string
                     project_id: string | null
-                    goal_id: string | null
                     title: string
                     status: WorkItemStatus
                     next_action: string | null
@@ -47,7 +46,6 @@ export interface Database {
                 Insert: {
                     id?: string
                     project_id?: string | null
-                    goal_id?: string | null
                     title: string
                     status?: WorkItemStatus
                     next_action?: string | null
@@ -66,7 +64,6 @@ export interface Database {
                 Update: {
                     id?: string
                     project_id?: string | null
-                    goal_id?: string | null
                     title?: string
                     status?: WorkItemStatus
                     next_action?: string | null
@@ -356,45 +353,6 @@ export interface Database {
                     applied_at?: string | null
                     actor?: 'user' | 'system' | 'ai'
                     created_at?: string
-                }
-                Relationships: []
-            }
-            goals: {
-                Row: {
-                    id: string
-                    project_id: string | null
-                    plan_id: string | null
-                    title: string
-                    status: 'backlog' | 'active' | 'done' | 'deferred'
-                    priority: number
-                    description: string | null
-                    due_at: string | null
-                    created_at: string
-                    updated_at: string
-                }
-                Insert: {
-                    id?: string
-                    project_id?: string | null
-                    plan_id?: string | null
-                    title: string
-                    status?: 'backlog' | 'active' | 'done' | 'deferred'
-                    priority?: number
-                    description?: string | null
-                    due_at?: string | null
-                    created_at?: string
-                    updated_at?: string
-                }
-                Update: {
-                    id?: string
-                    project_id?: string | null
-                    plan_id?: string | null
-                    title?: string
-                    status?: 'backlog' | 'active' | 'done' | 'deferred'
-                    priority?: number
-                    description?: string | null
-                    due_at?: string | null
-                    created_at?: string
-                    updated_at?: string
                 }
                 Relationships: []
             }

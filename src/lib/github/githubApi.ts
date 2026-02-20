@@ -311,6 +311,7 @@ export interface GitHubIssue {
     id: number
     number: number
     title: string
+    body?: string
     state: 'open' | 'closed'
     user: { login: string; avatar_url: string }
     labels: { name: string; color: string }[]

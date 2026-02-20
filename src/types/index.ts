@@ -26,7 +26,6 @@ export type Importance = 'critical' | 'high' | 'medium' | 'low'
 export interface WorkItem {
     id: string
     project_id: string | null
-    goal_id: string | null
     title: string
     status: WorkItemStatus
     next_action: string | null
@@ -39,21 +38,6 @@ export interface WorkItem {
     completed_at: string | null // ISO 8601 — done 전환 시점
     deleted_at: string | null   // ISO 8601 — soft delete 시점
     actual_min: number | null   // 실제 소요 시간 (분)
-    created_at: string
-    updated_at: string
-}
-
-export type GoalStatus = 'backlog' | 'active' | 'done' | 'deferred'
-
-export interface Goal {
-    id: string
-    project_id: string | null
-    plan_id: string | null
-    title: string
-    status: GoalStatus
-    priority: number
-    description: string | null
-    due_at: string | null
     created_at: string
     updated_at: string
 }

@@ -8,14 +8,14 @@ import type { EditorType, AIModel } from '../types/index'
 // 하드코딩 기본값 (고정)
 const FIXED_EDITOR_MODELS: Record<EditorType, AIModel[]> = {
     cursor: [
-        'claude_opus_4_6', 'claude_sonnet_4_6', 'claude_haiku_4_5',
-        'gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex', 'gpt_5_2',
+        'claude_opus_4_6', 'claude_sonnet_4_6',
+        'gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex',
         'gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'gemini_3_deep_think',
-        'gemini_2_5_pro', 'gemini_2_5_flash', 'cursor_composer'
+        'grok_code', 'kimi_2_5', 'cursor_composer'
     ],
-    claude_code: ['claude_sonnet_4_6', 'claude_opus_4_6', 'claude_haiku_4_5'],
-    codex: ['gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex', 'gpt_5_2'],
-    antigravity: ['gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'claude_sonnet_4_6', 'claude_opus_4_6'],
+    claude_code: ['claude_sonnet_4_6', 'claude_opus_4_6'],
+    codex: ['gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex'],
+    antigravity: ['gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'claude_sonnet_4_6', 'claude_opus_4_6', 'grok_code', 'kimi_2_5'],
 }
 
 export interface EditorModelEntry {

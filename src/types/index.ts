@@ -75,12 +75,15 @@ export type EditorType =
 // AI 모델 — 2026.02.19 기준 최신 (오케스트레이터 추천용)
 export type AIModel =
     // Anthropic
-    | 'claude_opus_4_6' | 'claude_sonnet_4_6' | 'claude_haiku_4_5'
+    | 'claude_opus_4_6' | 'claude_sonnet_4_6'
     // OpenAI
-    | 'gpt_5_3_codex' | 'gpt_5_3_codex_spark' | 'gpt_5_2_codex' | 'gpt_5_2'
+    | 'gpt_5_3_codex' | 'gpt_5_3_codex_spark' | 'gpt_5_2_codex'
     // Google
     | 'gemini_3_1_pro' | 'gemini_3_pro' | 'gemini_3_flash' | 'gemini_3_deep_think'
-    | 'gemini_2_5_pro' | 'gemini_2_5_flash'
+    // xAI
+    | 'grok_code'
+    // Moonshot
+    | 'kimi_2_5'
     // Cursor
     | 'cursor_composer'
 

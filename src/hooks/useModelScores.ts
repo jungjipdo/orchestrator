@@ -11,12 +11,10 @@ const DEFAULT_SCORES: Record<AIModel, { coding: number; analysis: number; docume
     // Anthropic
     claude_opus_4_6: { coding: 93, analysis: 90, documentation: 92, speed: 42 },
     claude_sonnet_4_6: { coding: 88, analysis: 84, documentation: 91, speed: 64 },
-    claude_haiku_4_5: { coding: 76, analysis: 72, documentation: 79, speed: 97 },
     // OpenAI
     gpt_5_3_codex: { coding: 96, analysis: 84, documentation: 82, speed: 82 },
     gpt_5_3_codex_spark: { coding: 84, analysis: 76, documentation: 72, speed: 100 },
     gpt_5_2_codex: { coding: 90, analysis: 80, documentation: 78, speed: 70 },
-    gpt_5_2: { coding: 86, analysis: 88, documentation: 85, speed: 66 },
     // Cursor
     cursor_composer: { coding: 82, analysis: 78, documentation: 76, speed: 95 },
     // Google
@@ -24,8 +22,10 @@ const DEFAULT_SCORES: Record<AIModel, { coding: number; analysis: number; docume
     gemini_3_pro: { coding: 83, analysis: 86, documentation: 84, speed: 58 },
     gemini_3_flash: { coding: 80, analysis: 82, documentation: 85, speed: 94 },
     gemini_3_deep_think: { coding: 89, analysis: 100, documentation: 80, speed: 20 },
-    gemini_2_5_pro: { coding: 69, analysis: 63, documentation: 74, speed: 50 },
-    gemini_2_5_flash: { coding: 62, analysis: 58, documentation: 69, speed: 90 },
+    // xAI
+    grok_code: { coding: 88, analysis: 88, documentation: 80, speed: 92 },
+    // Moonshot
+    kimi_2_5: { coding: 87, analysis: 85, documentation: 95, speed: 81 },
 }
 
 export interface ModelScoreEntry {

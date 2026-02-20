@@ -27,12 +27,10 @@ const ALL_MODELS: { key: AIModel; label: string; short: string }[] = [
     // Anthropic
     { key: 'claude_opus_4_6', label: 'Claude Opus 4.6', short: 'Opus 4.6' },
     { key: 'claude_sonnet_4_6', label: 'Claude Sonnet 4.6', short: 'Sonnet 4.6' },
-    { key: 'claude_haiku_4_5', label: 'Claude Haiku 4.5', short: 'Haiku 4.5' },
     // OpenAI
     { key: 'gpt_5_3_codex', label: 'GPT-5.3-Codex', short: 'GPT-5.3' },
     { key: 'gpt_5_3_codex_spark', label: 'GPT-5.3-Codex-Spark', short: 'Spark' },
     { key: 'gpt_5_2_codex', label: 'GPT-5.2-Codex', short: 'GPT-5.2' },
-    { key: 'gpt_5_2', label: 'GPT-5.2', short: 'GPT-5.2-API' },
     // Cursor
     { key: 'cursor_composer', label: 'Cursor Composer', short: 'Composer' },
     // Google
@@ -40,8 +38,10 @@ const ALL_MODELS: { key: AIModel; label: string; short: string }[] = [
     { key: 'gemini_3_pro', label: 'Gemini 3 Pro', short: 'Gem3 Pro' },
     { key: 'gemini_3_flash', label: 'Gemini 3 Flash', short: 'Gem3 Flash' },
     { key: 'gemini_3_deep_think', label: 'Gemini 3 Deep Think', short: 'Gem3 Think' },
-    { key: 'gemini_2_5_pro', label: 'Gemini 2.5 Pro', short: 'Gem2.5 Pro' },
-    { key: 'gemini_2_5_flash', label: 'Gemini 2.5 Flash', short: 'Gem2.5 Flash' },
+    // xAI
+    { key: 'grok_code', label: 'Grok Code', short: 'Grok Code' },
+    // Moonshot
+    { key: 'kimi_2_5', label: 'Kimi 2.5', short: 'Kimi 2.5' },
 ]
 
 const ALL_EDITORS: { type: EditorType; label: string }[] = [

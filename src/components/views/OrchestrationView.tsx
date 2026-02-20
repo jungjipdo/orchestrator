@@ -47,23 +47,23 @@ const EDITORS: EditorConfig[] = [
     {
         type: 'cursor', label: 'Cursor', icon: '/Cursor.png', enabled: true,
         supportedModels: [
-            'claude_opus_4_6', 'claude_sonnet_4_6', 'claude_haiku_4_5',
-            'gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex', 'gpt_5_2',
+            'claude_opus_4_6', 'claude_sonnet_4_6',
+            'gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex',
             'gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'gemini_3_deep_think',
-            'gemini_2_5_pro', 'gemini_2_5_flash', 'cursor_composer'
+            'grok_code', 'kimi_2_5', 'cursor_composer'
         ]
     },
     {
         type: 'claude_code', label: 'Claude Code', icon: '/Claude%20Code.png', enabled: true,
-        supportedModels: ['claude_sonnet_4_6', 'claude_opus_4_6', 'claude_haiku_4_5']
+        supportedModels: ['claude_sonnet_4_6', 'claude_opus_4_6']
     },
     {
         type: 'codex', label: 'Codex', icon: '/Codex.png', enabled: true,
-        supportedModels: ['gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex', 'gpt_5_2']
+        supportedModels: ['gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex']
     },
     {
         type: 'antigravity', label: 'Antigravity', icon: '/Antigravity.png', enabled: true,
-        supportedModels: ['gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'claude_sonnet_4_6', 'claude_opus_4_6']
+        supportedModels: ['gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'claude_sonnet_4_6', 'claude_opus_4_6', 'grok_code', 'kimi_2_5']
     }
 ]
 
@@ -71,18 +71,16 @@ const EDITORS: EditorConfig[] = [
 const MODEL_CONFIG: Record<AIModel, { label: string; color: string }> = {
     claude_opus_4_6: { label: 'Claude Opus 4.6', color: 'bg-orange-500/10 text-orange-600 border-orange-200' },
     claude_sonnet_4_6: { label: 'Claude Sonnet 4.6', color: 'bg-amber-500/10 text-amber-600 border-amber-200' },
-    claude_haiku_4_5: { label: 'Claude Haiku 4.5', color: 'bg-yellow-500/10 text-yellow-600 border-yellow-200' },
     gpt_5_3_codex: { label: 'GPT-5.3-Codex', color: 'bg-green-500/10 text-green-600 border-green-200' },
     gpt_5_3_codex_spark: { label: 'GPT-5.3-Spark', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-200' },
     gpt_5_2_codex: { label: 'GPT-5.2-Codex', color: 'bg-lime-500/10 text-lime-600 border-lime-200' },
-    gpt_5_2: { label: 'GPT-5.2', color: 'bg-teal-500/10 text-teal-600 border-teal-200' },
     cursor_composer: { label: 'Cursor Composer', color: 'bg-violet-500/10 text-violet-600 border-violet-200' },
     gemini_3_1_pro: { label: 'Gemini 3.1 Pro', color: 'bg-blue-600/10 text-blue-700 border-blue-300' },
     gemini_3_pro: { label: 'Gemini 3 Pro', color: 'bg-blue-500/10 text-blue-600 border-blue-200' },
     gemini_3_flash: { label: 'Gemini 3 Flash', color: 'bg-cyan-500/10 text-cyan-600 border-cyan-200' },
     gemini_3_deep_think: { label: 'Gemini 3 Deep Think', color: 'bg-purple-500/10 text-purple-600 border-purple-200' },
-    gemini_2_5_pro: { label: 'Gemini 2.5 Pro', color: 'bg-indigo-500/10 text-indigo-600 border-indigo-200' },
-    gemini_2_5_flash: { label: 'Gemini 2.5 Flash', color: 'bg-sky-500/10 text-sky-600 border-sky-200' },
+    grok_code: { label: 'Grok Code', color: 'bg-zinc-500/10 text-zinc-600 border-zinc-200' },
+    kimi_2_5: { label: 'Kimi 2.5', color: 'bg-rose-500/10 text-rose-600 border-rose-200' },
 }
 
 // ─── 분해 작업 타입 ───

@@ -23,6 +23,7 @@ export interface ProjectContext {
     readme: string | null
     recentCommits: string[]
     recentChangedFiles?: string[]  // 최근 변경된 파일 목록
+    openIssues?: { number: number; title: string; body: string }[] // 열린 이슈 목록
     fetchedAt?: number             // 컨텍스트 수집 시점 (timestamp)
 }
 
@@ -72,10 +73,13 @@ PROJECT CONTEXT:
 ${context.readme ? `- README (excerpt):\n${context.readme.slice(0, 2000)}` : '- README: not available'}
 - Recent commits:
 ${commitList}
-${changedFiles}${freshnessNote}
+${changedFiles}
+${context.openIssues && context.openIssues.length > 0
+                ? `- Open Issues (Use as secondary reference if relevant):\n${context.openIssues.map(i => `  - #${i.number} ${i.title}`).join('\n')}`
+                : '- Open Issues: none'
+            }${freshnessNote}
 
-Use this context to understand the project's current state and suggest tasks that are relevant and specific.
-For each task, add a "reference" field indicating what context informed it (e.g. "README", "commit:abc1234", "file:src/auth.ts").
+Use this context strictly to understand the environment, but prioritize the user's explicit instruction.
 `
     }
 
@@ -99,15 +103,18 @@ For testing/security tasks, prioritize "analysis" score.
         }
     }
 
-    return `You are a software development task decomposition expert.
-Analyze the user's task description and break it down into specific, actionable sub-tasks.
+    return `You are an elite software development task orchestration expert.
+Analyze the user's task description and break it down into SPECIFIC, HIGH-VALUE sub-tasks.
 ${contextBlock}${scoreBlock}
-RULES:
-1. Return 3-5 tasks maximum. Focus on the most important, distinct tasks.
-2. Each task MUST cover a DIFFERENT topic/subject. NO two tasks should address the same feature, component, or concern. Same model can be used for different tasks.
-3. Be specific and actionable. Avoid vague descriptions like "improve" or "optimize" without context.
-4. All instruction text must be in Korean.
-5. ONLY use models from this available list: ${modelList}
+
+CRITICAL RULES FOR TASK GENERATION:
+1. INTENT COMES FIRST: Read the user's instruction carefully. If they ask for a Proof of Concept (PoC) or exploit analysis, output EXACT steps for that workflow (e.g., compile contract, write exploit script, run tests). DO NOT output generic tasks.
+2. NO BOILERPLATE: NEVER suggest meaningless maintenance tasks like "Update README", "Update CI/CD scripts", "Add base interfaces", or "Formatting" UNLESS specifically requested by the user.
+3. CONTEXT IS SECONDARY: Use GitHub Commits and Issues as background knowledge (e.g., naming conventions, architecture) or optional targets, but DO NOT let them override the user's explicit prompt.
+4. SPECIFICITY: Avoid vague verbs like "Improve", "Optimize", or "Refactor" without stating EXACTLY what component or logic is being changed.
+5. FORMAT: Return 2-5 tasks maximum.
+6. LANGUAGE: All instruction text must be in Korean (be concise, max 1 sentence).
+7. MODELS: ONLY use models from this available list: ${modelList}
 
 Return a JSON array. Each item has:
 - instruction: Specific task description in Korean (be concise, max 1 sentence)
@@ -115,7 +122,7 @@ Return a JSON array. Each item has:
 - suggested_model: MUST be one of: ${modelList}
 - complexity: low, medium, or high
 - estimate_min: Estimated minutes (number, be realistic)
-- reference: What context informed this task (e.g. "README", "commit:abc1234", "file:path")
+- reference: What context informed this task (e.g. "User Prompt", "issue #12", "commit:abc1234")
 
 Task type definitions:
 - code_write: New feature/module implementation
@@ -124,7 +131,7 @@ Task type definitions:
 - debug: Bug analysis and fixes
 - api_dev: API endpoints/server logic
 - db_migration: Schema changes
-- security: Auth/security
+- security: Auth/security or Exploit/PoC creation
 - deploy: CI/CD pipeline
 - design: UI components/design system
 - research_docs: Research + documentation

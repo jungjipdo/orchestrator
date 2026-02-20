@@ -10,7 +10,7 @@ import { useWorkItems } from '../../hooks/useWorkItems'
 import { useGitHub } from '../../hooks/useGitHub'
 import { useEditorModels } from '../../hooks/useEditorModels'
 import { useModelScores } from '../../hooks/useModelScores'
-import { getReadme, listCommits, getCommitDetail } from '../../lib/github/githubApi'
+import { getReadme, listCommits, getCommitDetail, listIssues } from '../../lib/github/githubApi'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -141,10 +141,11 @@ export function OrchestrationView() {
         setContextLoading(true)
         try {
             const [owner, repo] = project.repo_full_name.split('/')
-            const [readme, commits] = await Promise.all([
+            const [readme, commits, issues] = await Promise.all([
                 getReadme(githubToken, owner, repo),
                 listCommits(githubToken, owner, repo, undefined, 10),
-            ])
+                listIssues(githubToken, owner, repo, 'open', 10),
+            ]) as [string | null, any[], any[]]
 
             // 커밋 상세 (최근 5개의 변경 파일)
             const recentShas = commits.slice(0, 5).map(c => c.sha)
@@ -159,6 +160,7 @@ export function OrchestrationView() {
                 readme,
                 recentCommits: commits.map(c => c.commit.message.split('\n')[0]),
                 recentChangedFiles: changedFiles,
+                openIssues: issues.map(i => ({ number: i.number, title: i.title, body: i.body ?? '' })),
                 fetchedAt: Date.now(),
             })
         } catch {
@@ -433,7 +435,7 @@ export function OrchestrationView() {
                     )}
                     {projectContext && !contextLoading && (
                         <p className="text-xs text-green-600">
-                            프로젝트 컨텍스트 로드 완료 (커밋 {projectContext.recentCommits.length}개{projectContext.readme ? ' + README' : ''})
+                            프로젝트 컨텍스트 로드 완료 (커밋 {projectContext.recentCommits.length}개{projectContext.readme ? ' + README' : ''}{projectContext.openIssues && projectContext.openIssues.length > 0 ? ` + 이슈 ${projectContext.openIssues.length}개` : ''})
                         </p>
                     )}
 

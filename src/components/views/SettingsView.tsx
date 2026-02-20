@@ -78,6 +78,7 @@ export function SettingsView() {
     const [repoPage, setRepoPage] = useState(0)
     const [confirmDisconnect, setConfirmDisconnect] = useState(false)
     const [disconnecting, setDisconnecting] = useState(false)
+    const [confirmResetScores, setConfirmResetScores] = useState(false)
 
     const handleDisconnect = async () => {
         setDisconnecting(true)
@@ -121,7 +122,6 @@ export function SettingsView() {
     }
 
     const handleResetScores = async () => {
-        if (!confirm('모든 AI 모델 점수를 기본값으로 초기화하시겠습니까?')) return
         try {
             await Promise.all(
                 (Object.keys(DEFAULT_SCORES) as AIModel[]).map(key =>
@@ -278,9 +278,24 @@ export function SettingsView() {
                         <CardTitle className="text-base">AI Model Scoring</CardTitle>
                         <p className="text-xs text-muted-foreground">각 모델의 카테고리별 성능 점수 (0-100). AI 추천 시 높은 점수 모델이 우선됩니다.</p>
                     </div>
-                    <Button variant="outline" size="sm" onClick={() => void handleResetScores()}>
-                        기본 점수로 초기화
-                    </Button>
+                    {confirmResetScores ? (
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground mr-1">정말 초기화할까요?</span>
+                            <Button variant="destructive" size="sm" onClick={() => {
+                                setConfirmResetScores(false)
+                                void handleResetScores()
+                            }}>
+                                확인
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => setConfirmResetScores(false)}>
+                                취소
+                            </Button>
+                        </div>
+                    ) : (
+                        <Button variant="outline" size="sm" onClick={() => setConfirmResetScores(true)}>
+                            기본 점수로 초기화
+                        </Button>
+                    )}
                 </CardHeader>
                 <CardContent>
                     <div className="overflow-x-auto">

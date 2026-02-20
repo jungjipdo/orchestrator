@@ -175,7 +175,7 @@ export function ProjectImportModal({
                                                                     {repo.full_name.includes('/') ? (
                                                                         <>
                                                                             <span className="text-foreground">{repo.full_name.split('/')[0]}/</span>
-                                                                            <span className="font-medium bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded text-red-600 dark:text-red-400 text-xs">{repo.full_name.split('/').slice(1).join('/')}</span>
+                                                                            <span className="font-medium ml-0.5 text-foreground">{repo.full_name.split('/').slice(1).join('/')}</span>
                                                                         </>
                                                                     ) : (
                                                                         <span className="font-medium">{repo.full_name}</span>
@@ -200,7 +200,7 @@ export function ProjectImportModal({
                                                                 </span>
                                                             )}
                                                             {repo.private && (
-                                                                <span className="text-[10px] px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 rounded text-red-600 dark:text-red-400">
+                                                                <span className="text-[10px] px-1.5 py-0.5 rounded border border-yellow-600/70 text-yellow-700 dark:text-yellow-500 font-medium">
                                                                     private
                                                                 </span>
                                                             )}

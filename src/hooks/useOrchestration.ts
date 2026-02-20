@@ -47,26 +47,41 @@ export function useOrchestration() {
 
     useEffect(() => { refresh() }, [refresh])
 
-    // === 에디터 토글 (optimistic) ===
+    // === 에디터 토글 (optimistic & local persistence) ===
 
-    const [localEditors, setLocalEditors] = useState<EditorType[]>([])
+    const [localEditors, setLocalEditors] = useState<EditorType[]>(() => {
+        try {
+            const stored = localStorage.getItem('orchestrator_editors')
+            if (stored) return JSON.parse(stored) as EditorType[]
+        } catch { }
+        return []
+    })
     const [syncedFromDb, setSyncedFromDb] = useState(false)
 
-    // DB에서 로드된 후 로컬 상태 동기화
+    // DB에서 로드된 후 로컬 상태와 병합
     useEffect(() => {
-        if (!loading && !syncedFromDb) {
-            setLocalEditors(connections.map(c => c.editor_type as EditorType))
+        if (!loading && !syncedFromDb && connections.length > 0) {
+            setLocalEditors(prev => {
+                const dbEditors = connections.map(c => c.editor_type as EditorType)
+                const merged = Array.from(new Set([...prev, ...dbEditors]))
+                localStorage.setItem('orchestrator_editors', JSON.stringify(merged))
+                return merged
+            })
+            setSyncedFromDb(true)
+        } else if (!loading && !syncedFromDb) {
             setSyncedFromDb(true)
         }
     }, [connections, loading, syncedFromDb])
 
     const toggle = useCallback((editorType: EditorType) => {
-        // 즉시 로컬 상태 업데이트 (optimistic)
-        setLocalEditors(prev =>
-            prev.includes(editorType)
+        // 즉시 로컬 상태 업데이트 + localStorage 저장
+        setLocalEditors(prev => {
+            const next = prev.includes(editorType)
                 ? prev.filter(e => e !== editorType)
                 : [...prev, editorType]
-        )
+            localStorage.setItem('orchestrator_editors', JSON.stringify(next))
+            return next
+        })
         // 백그라운드 Supabase 동기화 (에러 무시)
         toggleEditor(editorType).catch(() => { /* DB 미적용 시 무시 */ })
     }, [])

@@ -6,25 +6,26 @@ import { useState, useEffect, useCallback } from 'react'
 import { getModelScores, upsertModelScore, type ModelScore } from '../lib/supabase/modelScores'
 import type { AIModel } from '../types/index'
 
-// 모든 모델의 기본 점수 (사용자 제공 지표 2026.02.19)
+// 모든 모델의 기본 점수 (사용자 제공 지표 업데이트)
 const DEFAULT_SCORES: Record<AIModel, { coding: number; analysis: number; documentation: number; speed: number }> = {
     // Anthropic
-    claude_opus_4_6: { coding: 92, analysis: 94, documentation: 88, speed: 45 },
-    claude_sonnet_4_6: { coding: 88, analysis: 90, documentation: 86, speed: 65 },
-    claude_haiku_4_5: { coding: 72, analysis: 74, documentation: 78, speed: 92 },
+    claude_opus_4_6: { coding: 93, analysis: 90, documentation: 92, speed: 42 },
+    claude_sonnet_4_6: { coding: 88, analysis: 84, documentation: 91, speed: 64 },
+    claude_haiku_4_5: { coding: 76, analysis: 72, documentation: 79, speed: 97 },
     // OpenAI
-    gpt_5_3_codex: { coding: 95, analysis: 87, documentation: 82, speed: 74 },
-    gpt_5_3_codex_spark: { coding: 82, analysis: 72, documentation: 68, speed: 100 },
-    gpt_5_2_codex: { coding: 88, analysis: 84, documentation: 80, speed: 70 },
-    gpt_5_2: { coding: 85, analysis: 86, documentation: 84, speed: 68 },
+    gpt_5_3_codex: { coding: 96, analysis: 84, documentation: 82, speed: 82 },
+    gpt_5_3_codex_spark: { coding: 84, analysis: 76, documentation: 72, speed: 100 },
+    gpt_5_2_codex: { coding: 90, analysis: 80, documentation: 78, speed: 70 },
+    gpt_5_2: { coding: 86, analysis: 88, documentation: 85, speed: 66 },
     // Cursor
-    cursor_composer: { coding: 86, analysis: 82, documentation: 78, speed: 75 },
+    cursor_composer: { coding: 82, analysis: 78, documentation: 76, speed: 95 },
     // Google
-    gemini_3_pro: { coding: 85, analysis: 93, documentation: 89, speed: 58 },
-    gemini_3_flash: { coding: 83, analysis: 88, documentation: 87, speed: 92 },
-    gemini_3_deep_think: { coding: 78, analysis: 100, documentation: 72, speed: 28 },
-    gemini_2_5_pro: { coding: 82, analysis: 88, documentation: 86, speed: 55 },
-    gemini_2_5_flash: { coding: 75, analysis: 80, documentation: 82, speed: 90 },
+    gemini_3_1_pro: { coding: 92, analysis: 96, documentation: 87, speed: 56 },
+    gemini_3_pro: { coding: 83, analysis: 86, documentation: 84, speed: 58 },
+    gemini_3_flash: { coding: 80, analysis: 82, documentation: 85, speed: 94 },
+    gemini_3_deep_think: { coding: 89, analysis: 100, documentation: 80, speed: 20 },
+    gemini_2_5_pro: { coding: 69, analysis: 63, documentation: 74, speed: 50 },
+    gemini_2_5_flash: { coding: 62, analysis: 58, documentation: 69, speed: 90 },
 }
 
 export interface ModelScoreEntry {

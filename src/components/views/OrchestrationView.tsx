@@ -85,6 +85,7 @@ const MODEL_CONFIG: Record<AIModel, { label: string; color: string }> = {
     gpt_5_2_codex: { label: 'GPT-5.2-Codex', color: 'bg-lime-500/10 text-lime-600 border-lime-200' },
     gpt_5_2: { label: 'GPT-5.2', color: 'bg-teal-500/10 text-teal-600 border-teal-200' },
     cursor_composer: { label: 'Cursor Composer', color: 'bg-violet-500/10 text-violet-600 border-violet-200' },
+    gemini_3_1_pro: { label: 'Gemini 3.1 Pro', color: 'bg-blue-600/10 text-blue-700 border-blue-300' },
     gemini_3_pro: { label: 'Gemini 3 Pro', color: 'bg-blue-500/10 text-blue-600 border-blue-200' },
     gemini_3_flash: { label: 'Gemini 3 Flash', color: 'bg-cyan-500/10 text-cyan-600 border-cyan-200' },
     gemini_3_deep_think: { label: 'Gemini 3 Deep Think', color: 'bg-purple-500/10 text-purple-600 border-purple-200' },

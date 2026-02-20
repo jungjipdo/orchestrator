@@ -11,9 +11,9 @@ const DEFAULT_EDITOR_MODELS: Record<EditorType, AIModel[]> = {
     cursor: ['claude_sonnet_4_6', 'claude_opus_4_6', 'gpt_5_3_codex', 'gpt_5_2_codex', 'gemini_3_pro', 'gemini_3_flash', 'cursor_composer'],
     claude_code: ['claude_sonnet_4_6', 'claude_opus_4_6', 'claude_haiku_4_5'],
     codex: ['gpt_5_3_codex', 'gpt_5_3_codex_spark'],
-    antigravity: ['gemini_3_pro', 'gemini_3_flash', 'gemini_3_deep_think', 'gemini_2_5_pro'],
-    vscode: ['claude_sonnet_4_6', 'claude_opus_4_6', 'gpt_5_3_codex', 'gpt_5_2_codex', 'gemini_3_pro', 'gemini_3_flash'],
-    terminal: ['claude_sonnet_4_6', 'claude_opus_4_6', 'claude_haiku_4_5', 'gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex', 'gemini_3_pro', 'gemini_3_flash', 'gemini_3_deep_think'],
+    antigravity: ['gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'gemini_3_deep_think', 'gemini_2_5_pro'],
+    vscode: ['claude_sonnet_4_6', 'claude_opus_4_6', 'gpt_5_3_codex', 'gpt_5_2_codex', 'gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash'],
+    terminal: ['claude_sonnet_4_6', 'claude_opus_4_6', 'claude_haiku_4_5', 'gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex', 'gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'gemini_3_deep_think'],
     windsurf: ['claude_sonnet_4_6', 'claude_opus_4_6', 'gpt_5_3_codex_spark', 'gpt_5_2_codex'],
     zed: [],
 }

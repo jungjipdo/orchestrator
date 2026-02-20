@@ -80,7 +80,7 @@ export type AIModel =
     // OpenAI
     | 'gpt_5_3_codex' | 'gpt_5_3_codex_spark' | 'gpt_5_2_codex' | 'gpt_5_2'
     // Google
-    | 'gemini_3_pro' | 'gemini_3_flash' | 'gemini_3_deep_think'
+    | 'gemini_3_1_pro' | 'gemini_3_pro' | 'gemini_3_flash' | 'gemini_3_deep_think'
     | 'gemini_2_5_pro' | 'gemini_2_5_flash'
     // Cursor
     | 'cursor_composer'

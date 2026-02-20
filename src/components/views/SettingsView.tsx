@@ -35,6 +35,7 @@ const ALL_MODELS: { key: AIModel; label: string; short: string }[] = [
     // Cursor
     { key: 'cursor_composer', label: 'Cursor Composer', short: 'Composer' },
     // Google
+    { key: 'gemini_3_1_pro', label: 'Gemini 3.1 Pro', short: 'Gem3.1 Pro' },
     { key: 'gemini_3_pro', label: 'Gemini 3 Pro', short: 'Gem3 Pro' },
     { key: 'gemini_3_flash', label: 'Gemini 3 Flash', short: 'Gem3 Flash' },
     { key: 'gemini_3_deep_think', label: 'Gemini 3 Deep Think', short: 'Gem3 Think' },
@@ -282,7 +283,10 @@ export function SettingsView() {
                                 {scores.map(entry => (
                                     <tr key={entry.model_key} className="border-b last:border-0">
                                         <td className="py-3 pr-4 font-medium text-xs whitespace-nowrap">
-                                            {ALL_MODELS.find(m => m.key === entry.model_key)?.label ?? entry.model_key}
+                                            {ALL_MODELS.find(m => m.key === entry.model_key)?.short ?? entry.model_key}
+                                            {entry.model_key === 'gemini_3_1_pro' && (
+                                                <Badge variant="default" className="ml-1 h-3.5 text-[9px] px-1 py-0 leading-none bg-gradient-to-r from-blue-500 to-indigo-500">New</Badge>
+                                            )}
                                         </td>
                                         {CATEGORIES.map(cat => (
                                             <td key={cat} className="py-3 px-1 text-center">
@@ -339,6 +343,9 @@ export function SettingsView() {
                                     {ALL_MODELS.map(m => (
                                         <th key={m.key} className="text-center py-2 px-2 font-medium text-xs whitespace-nowrap min-w-[80px]">
                                             {m.short}
+                                            {m.key === 'gemini_3_1_pro' && (
+                                                <Badge variant="default" className="ml-1 h-3.5 text-[9px] px-1 py-0 leading-none bg-gradient-to-r from-blue-500 to-indigo-500">New</Badge>
+                                            )}
                                         </th>
                                     ))}
                                 </tr>

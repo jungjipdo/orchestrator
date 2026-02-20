@@ -46,7 +46,12 @@ interface EditorConfig {
 const EDITORS: EditorConfig[] = [
     {
         type: 'cursor', label: 'Cursor', icon: '/Cursor.png', enabled: true,
-        supportedModels: ['claude_sonnet_4_6', 'claude_opus_4_6', 'gpt_5_3_codex', 'gpt_5_2_codex', 'gemini_3_pro', 'gemini_3_flash', 'cursor_composer']
+        supportedModels: [
+            'claude_opus_4_6', 'claude_sonnet_4_6', 'claude_haiku_4_5',
+            'gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex', 'gpt_5_2',
+            'gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'gemini_3_deep_think',
+            'gemini_2_5_pro', 'gemini_2_5_flash', 'cursor_composer'
+        ]
     },
     {
         type: 'claude_code', label: 'Claude Code', icon: '/Claude%20Code.png', enabled: true,
@@ -54,11 +59,11 @@ const EDITORS: EditorConfig[] = [
     },
     {
         type: 'codex', label: 'Codex', icon: '/Codex.png', enabled: true,
-        supportedModels: ['gpt_5_3_codex', 'gpt_5_3_codex_spark']
+        supportedModels: ['gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex', 'gpt_5_2']
     },
     {
         type: 'antigravity', label: 'Antigravity', icon: '/Antigravity.png', enabled: true,
-        supportedModels: ['gemini_3_pro', 'gemini_3_flash', 'gemini_3_deep_think', 'gemini_2_5_pro']
+        supportedModels: ['gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'claude_sonnet_4_6', 'claude_opus_4_6']
     }
 ]
 

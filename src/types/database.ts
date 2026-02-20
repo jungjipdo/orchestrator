@@ -36,6 +36,10 @@ export interface Database {
                     due_at: string | null
                     source_app: string | null
                     source_ref: string | null
+                    started_at: string | null
+                    completed_at: string | null
+                    deleted_at: string | null
+                    actual_min: number | null
                     created_at: string
                     updated_at: string
                 }
@@ -50,6 +54,10 @@ export interface Database {
                     due_at?: string | null
                     source_app?: string | null
                     source_ref?: string | null
+                    started_at?: string | null
+                    completed_at?: string | null
+                    deleted_at?: string | null
+                    actual_min?: number | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -64,6 +72,10 @@ export interface Database {
                     due_at?: string | null
                     source_app?: string | null
                     source_ref?: string | null
+                    started_at?: string | null
+                    completed_at?: string | null
+                    deleted_at?: string | null
+                    actual_min?: number | null
                     created_at?: string
                     updated_at?: string
                 }

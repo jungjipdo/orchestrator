@@ -14,10 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Progress } from '../ui/progress'
-import type { WorkItemRow } from '../../types/database'
 import {
     AlertTriangle,
-    Users,
     GitBranch,
     Calendar,
     ListTodo,
@@ -32,18 +30,6 @@ import {
     X,
     Check,
 } from 'lucide-react'
-
-// ─── Release 그룹 ───
-interface ReleaseGroup {
-    projectId: string | null
-    projectName: string
-    items: WorkItemRow[]
-    doneCount: number
-    totalCount: number
-    progress: number
-    criticalCount: number
-    latestUpdate: string
-}
 
 // ─── SubTask for Detail Plans ───
 interface SubTask {
@@ -60,7 +46,7 @@ interface DetailPlan {
 const SECTION_ORDER_KEY = 'orchestrator_section_order'
 
 export function ReleasePlanView() {
-    const { items: allItems, loading: itemsLoading } = useWorkItems()
+    const { items: allItems, loading: itemsLoading, updateItem, removeItem } = useWorkItems()
     const { deadlines } = useProjectDeadlines({ upcomingDays: 30 })
     const { plans, loading: plansLoading, deletePlan, updatePlan } = usePlans()
     const { projects, loading: projectsLoading, removeProject, updateProjectStatus } = useProjects()
@@ -188,33 +174,6 @@ export function ReleasePlanView() {
     }, [])
 
     // ─── Derived ───
-    const releaseGroups = useMemo<ReleaseGroup[]>(() => {
-        const grouped = new Map<string | null, WorkItemRow[]>()
-        allItems.forEach(item => {
-            const key = item.project_id ?? null
-            if (!grouped.has(key)) grouped.set(key, [])
-            grouped.get(key)!.push(item)
-        })
-
-        return Array.from(grouped.entries()).map(([projectId, items]) => {
-            const doneCount = items.filter(i => i.status === 'done').length
-            const totalCount = items.length
-            const criticalCount = items.filter(i => i.status === 'blocked').length
-            const latest = items.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0]
-            const project = projectId ? projects.find(p => p.id === projectId) : null
-            return {
-                projectId,
-                projectName: project ? project.repo_name : (projectId ? 'Unknown' : 'Backlog'),
-                items,
-                doneCount,
-                totalCount,
-                progress: totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0,
-                criticalCount,
-                latestUpdate: latest ? new Date(latest.updated_at).toLocaleDateString() : '-',
-            }
-        })
-    }, [allItems, projects])
-
     // ─── Plans 분리 ───
     const activePlans = useMemo(() => plans.filter(p => p.status === 'active'), [plans])
     const backlogPlans = useMemo(() => plans.filter(p => p.status !== 'active' && p.status !== 'done'), [plans])
@@ -225,7 +184,6 @@ export function ReleasePlanView() {
     const backlogProjects = useMemo(() => projects.filter(p => p.status !== 'active' && p.status !== 'completed'), [projects])
     const doneProjects = useMemo(() => projects.filter(p => p.status === 'completed'), [projects])
 
-    // ─── Active Progress (서브태스크 기반 n/m) ───
     const activeProgress = useMemo(() => {
         let totalSubTasks = 0
         let doneSubTasks = 0
@@ -622,44 +580,7 @@ export function ReleasePlanView() {
                     ? 'border-primary bg-primary/5'
                     : 'border-transparent'
                     }`}>
-                    {/* Work Items 기반 릴리스 그룹 */}
-                    {releaseGroups.map(group => (
-                        <Card key={group.projectId ?? 'none'}>
-                            <CardHeader className="pb-2">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <CardTitle className="text-lg">{group.projectName}</CardTitle>
-                                        <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                                            <span>Updated {group.latestUpdate}</span>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-xl font-bold">{group.progress}%</div>
-                                        <div className="text-xs text-muted-foreground">
-                                            {group.doneCount}/{group.totalCount} tasks
-                                        </div>
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <Progress value={group.progress} className="h-2 mb-3" />
-                                <div className="flex items-center justify-between text-sm">
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex items-center gap-1">
-                                            <Users className="w-4 h-4 text-muted-foreground" />
-                                            <span>{group.items.filter(i => i.energy).map(i => i.energy).filter((v, i, a) => a.indexOf(v) === i).join(', ') || 'N/A'}</span>
-                                        </div>
-                                        {group.criticalCount > 0 && (
-                                            <div className="flex items-center gap-1 text-red-600">
-                                                <AlertTriangle className="w-4 h-4" />
-                                                <span>{group.criticalCount} blocked</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
+                    {/* Work Items 기반 릴리스 그룹 - 이제 개별 Project 카드 내부로 이동됨 */}
 
                     {/* Active Plans — 서브태스크 인라인 표시 */}
                     {activePlans.map(plan => {
@@ -794,40 +715,152 @@ export function ReleasePlanView() {
                     })}
 
                     {/* Active Projects */}
-                    {activeProjects.map(project => (
-                        <Card key={project.id} className="border-green-200 bg-green-50/30">
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-3 h-3 rounded-full bg-green-500" />
-                                        <Github className="w-4 h-4 text-green-600" />
-                                        <div>
-                                            <div className="font-medium text-sm flex items-center gap-1">
-                                                <span className="text-muted-foreground">{project.repo_full_name.split('/')[0]}/</span>
-                                                <span style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }} className="dark:!bg-[#7f1d1d33] dark:!text-[#fca5a5]">{project.repo_full_name.split('/')[1]}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                {project.language && <Badge variant="outline" className="text-xs">{project.language}</Badge>}
-                                                <Badge className="text-xs bg-green-100 text-green-700 border-green-200">Active</Badge>
+                    {activeProjects.map(project => {
+                        const projectItems = allItems.filter(i => i.project_id === project.id)
+                        const activeTasks = projectItems.filter(i => i.status !== 'done')
+                        const doneTasks = projectItems.filter(i => i.status === 'done')
+                        // 가중치 기반 진척률: estimate_min 합산 (없으면 1로 처리)
+                        const doneWeight = doneTasks.reduce((s, i) => s + (i.estimate_min ?? 1), 0)
+                        const totalWeight = projectItems.reduce((s, i) => s + (i.estimate_min ?? 1), 0)
+                        const progress = totalWeight > 0 ? Math.round((doneWeight / totalWeight) * 100) : 0
+
+                        return (
+                            <Card key={project.id} className="border-green-200 bg-green-50/30">
+                                <CardContent className="p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-3 h-3 rounded-full bg-green-500" />
+                                            <Github className="w-4 h-4 text-green-600" />
+                                            <div>
+                                                <div className="font-medium text-sm flex items-center gap-1">
+                                                    <span className="text-muted-foreground">{project.repo_full_name.split('/')[0]}/</span>
+                                                    <span style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }} className="dark:!bg-[#7f1d1d33] dark:!text-[#fca5a5]">{project.repo_full_name.split('/')[1]}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    {project.language && <Badge variant="outline" className="text-xs">{project.language}</Badge>}
+                                                    <Badge className="text-xs bg-green-100 text-green-700 border-green-200">Active</Badge>
+                                                </div>
                                             </div>
                                         </div>
+                                        <div className="flex items-center gap-1">
+                                            <button type="button" onClick={() => void handleDeactivateProject(project.id)}
+                                                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer" title="비활성화">
+                                                <ArrowLeft className="w-4 h-4" />
+                                            </button>
+                                            <a href={project.repo_url} target="_blank" rel="noopener noreferrer"
+                                                className="p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors" title="GitHub">
+                                                <ExternalLink className="w-4 h-4" />
+                                            </a>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        <button type="button" onClick={() => void handleDeactivateProject(project.id)}
-                                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer" title="비활성화">
-                                            <ArrowLeft className="w-4 h-4" />
-                                        </button>
-                                        <a href={project.repo_url} target="_blank" rel="noopener noreferrer"
-                                            className="p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors" title="GitHub">
-                                            <ExternalLink className="w-4 h-4" />
-                                        </a>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
 
-                    {releaseGroups.length === 0 && activePlans.length === 0 && activeProjects.length === 0 && (
+                                    {/* Project Tasks 인라인 표시 */}
+                                    {projectItems.length > 0 && (
+                                        <div className="mt-4 space-y-3">
+                                            <div className="flex items-center gap-2">
+                                                <Progress value={progress} className="h-2 flex-1" />
+                                                <span className="text-xs text-muted-foreground font-medium">{doneTasks.length}/{projectItems.length}</span>
+                                            </div>
+
+                                            {/* 활성 태스크 */}
+                                            {activeTasks.filter(t => t.status !== 'blocked').length > 0 && (
+                                                <div className="space-y-1">
+                                                    {activeTasks.filter(t => t.status !== 'blocked').map(task => (
+                                                        <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-white/60 group">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void updateItem(task.id, { status: 'done' })}
+                                                                className="w-4 h-4 rounded border border-muted-foreground/30 hover:border-primary flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+                                                            />
+                                                            <div className="flex flex-col flex-1">
+                                                                <span className="text-sm">{task.title}</span>
+                                                                {task.next_action && <span className="text-xs text-muted-foreground">{task.next_action}</span>}
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void updateItem(task.id, { status: 'blocked' }).catch(e => alert(e instanceof Error ? e.message : 'Error'))}
+                                                                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-red-500 transition-opacity cursor-pointer"
+                                                                title="차단 표시"
+                                                            >
+                                                                <AlertTriangle className="w-3 h-3" />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void removeItem(task.id)}
+                                                                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
+                                                            >
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* 차단된 태스크 */}
+                                            {activeTasks.filter(t => t.status === 'blocked').length > 0 && (
+                                                <div className="space-y-1">
+                                                    <div className="text-xs font-medium text-red-500 uppercase tracking-wider flex items-center gap-1">
+                                                        <AlertTriangle className="w-3 h-3" /> Blocked
+                                                    </div>
+                                                    {activeTasks.filter(t => t.status === 'blocked').map(task => (
+                                                        <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-red-50/50 group">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void updateItem(task.id, { status: 'active' })}
+                                                                className="w-4 h-4 rounded border-2 border-red-400 text-red-500 flex items-center justify-center shrink-0 cursor-pointer hover:bg-red-100 transition-colors"
+                                                                title="차단 해제 (active로 복귀)"
+                                                            >
+                                                                <AlertTriangle className="w-2.5 h-2.5" />
+                                                            </button>
+                                                            <div className="flex flex-col flex-1">
+                                                                <span className="text-sm text-red-700">{task.title}</span>
+                                                                {task.next_action && <span className="text-xs text-red-400">{task.next_action}</span>}
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void removeItem(task.id)}
+                                                                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
+                                                            >
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* 완료된 태스크 */}
+                                            {doneTasks.length > 0 && (
+                                                <div className="space-y-1">
+                                                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Completed</div>
+                                                    {doneTasks.map(task => (
+                                                        <div key={task.id} className="flex items-center gap-2 p-2 rounded-md bg-green-50/50 group">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void updateItem(task.id, { status: 'backlog' })}
+                                                                className="w-4 h-4 rounded bg-green-500 border-green-500 text-white flex items-center justify-center shrink-0 cursor-pointer"
+                                                            >
+                                                                <Check className="w-3 h-3" />
+                                                            </button>
+                                                            <span className="text-sm flex-1 line-through text-muted-foreground">{task.title}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void removeItem(task.id)}
+                                                                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity cursor-pointer"
+                                                            >
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )
+                    })}
+
+                    {activePlans.length === 0 && activeProjects.length === 0 && (
                         <Card className="lg:col-span-3">
                             <CardContent className="p-6 text-center text-muted-foreground">
                                 <GitBranch className="w-12 h-12 mx-auto mb-3 opacity-30" />
@@ -837,6 +870,48 @@ export function ReleasePlanView() {
                     )}
                 </div>
             </div>
+
+            {/* ─── Today Completed ─── */}
+            {(() => {
+                const todayStart = new Date()
+                todayStart.setHours(0, 0, 0, 0)
+                const todayStr = todayStart.toISOString()
+                const todayCompleted = allItems.filter(i =>
+                    i.status === 'done' &&
+                    i.completed_at &&
+                    i.completed_at >= todayStr
+                )
+                if (todayCompleted.length === 0) return null
+                return (
+                    <div className="mt-6">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Check className="w-5 h-5 text-emerald-500" />
+                            <h3 className="text-lg font-semibold">Today Completed</h3>
+                            <Badge variant="secondary">{todayCompleted.length}</Badge>
+                        </div>
+                        <div className="space-y-2">
+                            {todayCompleted.map(task => (
+                                <div key={task.id} className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50/50 border border-emerald-100">
+                                    <div className="w-5 h-5 rounded bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                                        <Check className="w-3.5 h-3.5" />
+                                    </div>
+                                    <span className="text-sm flex-1 line-through text-muted-foreground">{task.title}</span>
+                                    {task.actual_min != null && (
+                                        <span className="text-xs text-muted-foreground">
+                                            {task.actual_min}m
+                                            {task.estimate_min != null && (
+                                                <span className={task.actual_min <= task.estimate_min ? ' text-emerald-600' : ' text-amber-600'}>
+                                                    {' '}({task.estimate_min}m est)
+                                                </span>
+                                            )}
+                                        </span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )
+            })()}
 
             {/* ─── 구분선 ─── */}
             <div className="relative my-8">

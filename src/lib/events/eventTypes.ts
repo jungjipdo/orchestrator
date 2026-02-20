@@ -10,6 +10,14 @@ export const EVENT_TYPES = {
     CODING_MILESTONE_DONE: 'coding.milestone_done',
     REVIEW_DAILY: 'review.daily',
     INFO_COLLECTED: 'info.collected',
+    // Phase 2: WorkItem 수명주기 이벤트
+    WORK_ITEM_CREATED: 'work_item_created',
+    WORK_ITEM_UPDATED: 'work_item_updated',
+    WORK_ITEM_STATUS_CHANGED: 'work_item_status_changed',
+    WORK_ITEM_DELETED: 'work_item_deleted',
+    // Phase 2: 오케스트레이션 이벤트
+    ORCHESTRATION_ANALYZED: 'orchestration_analyzed',
+    ORCHESTRATION_SAVED: 'orchestration_saved',
 } as const
 
 export type EventType = typeof EVENT_TYPES[keyof typeof EVENT_TYPES]
@@ -48,6 +56,32 @@ export const EVENT_META: Record<EventType, EventMeta> = {
     },
     [EVENT_TYPES.INFO_COLLECTED]: {
         label: '정보 수집 완료',
+        autoApply: true,
+    },
+    // Phase 2: WorkItem 수명주기
+    [EVENT_TYPES.WORK_ITEM_CREATED]: {
+        label: '작업 생성',
+        autoApply: true,
+    },
+    [EVENT_TYPES.WORK_ITEM_UPDATED]: {
+        label: '작업 수정',
+        autoApply: true,
+    },
+    [EVENT_TYPES.WORK_ITEM_STATUS_CHANGED]: {
+        label: '작업 상태 전이',
+        autoApply: true,
+    },
+    [EVENT_TYPES.WORK_ITEM_DELETED]: {
+        label: '작업 삭제 (soft)',
+        autoApply: true,
+    },
+    // Phase 2: 오케스트레이션
+    [EVENT_TYPES.ORCHESTRATION_ANALYZED]: {
+        label: 'AI 작업 분석 완료',
+        autoApply: true,
+    },
+    [EVENT_TYPES.ORCHESTRATION_SAVED]: {
+        label: '오케스트레이션 저장',
         autoApply: true,
     },
 }

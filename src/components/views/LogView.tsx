@@ -5,6 +5,7 @@
 
 import { useMemo, useState } from 'react'
 import { useEventLogs } from '../../hooks/useEventLogs'
+import { useMetrics } from '../../hooks/useMetrics'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -80,12 +81,73 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
     'session.end': '⏹️ 세션 종료',
     'work_item.created': '📋 작업 생성',
     'work_item.updated': '✏️ 작업 수정',
+    'work_item_created': '📋 작업 추가',
+    'work_item_updated': '✏️ 작업 상태 변경',
+    'work_item_deleted': '🗑️ 작업 삭제',
+    'orchestration_analyzed': '✨ AI 작업 분석 완료',
 }
 
 function formatEventType(eventType: string): string {
     return EVENT_TYPE_LABELS[eventType] ?? eventType.replace(/_/g, ' ')
 }
 
+// ─── Metrics Summary Cards ───
+function MetricCards() {
+    const { current, loading: metricsLoading } = useMetrics()
+
+    if (metricsLoading || !current) {
+        return (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="h-24 bg-muted rounded-lg animate-pulse" />
+                ))}
+            </div>
+        )
+    }
+
+    const cards = [
+        {
+            label: 'Throughput',
+            value: `${current.throughput}`,
+            sub: '\uc624\ub298 \uc644\ub8cc',
+            color: 'text-emerald-600',
+            bg: 'bg-emerald-50',
+        },
+        {
+            label: 'Cycle Time',
+            value: current.avgCycleTimeMin != null ? `${current.avgCycleTimeMin}m` : '-',
+            sub: 'active \u2192 done \ud3c9\uade0',
+            color: 'text-blue-600',
+            bg: 'bg-blue-50',
+        },
+        {
+            label: 'Lead Time',
+            value: current.avgLeadTimeMin != null ? `${current.avgLeadTimeMin}m` : '-',
+            sub: '\uc0dd\uc131 \u2192 \uc644\ub8cc \ud3c9\uade0',
+            color: 'text-purple-600',
+            bg: 'bg-purple-50',
+        },
+        {
+            label: 'Accuracy',
+            value: current.estimateAccuracy != null ? `${Math.round(current.estimateAccuracy * 100)}%` : '-',
+            sub: '\uc608\uc0c1/\uc2e4\uc81c \uc77c\uce58\ub3c4',
+            color: 'text-amber-600',
+            bg: 'bg-amber-50',
+        },
+    ]
+
+    return (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {cards.map(c => (
+                <div key={c.label} className={`${c.bg} rounded-lg p-4 border`}>
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{c.label}</div>
+                    <div className={`text-2xl font-bold mt-1 ${c.color}`}>{c.value}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{c.sub}</div>
+                </div>
+            ))}
+        </div>
+    )
+}
 export function LogView() {
     // 7일 전 날짜 계산
     const since7d = useMemo(() => {
@@ -130,13 +192,16 @@ export function LogView() {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-2xl font-semibold">Activity Log</h2>
-                    <p className="text-muted-foreground">최근 7일간 Plans, Projects 생성·수정·삭제 등 전체 활동 기록</p>
+                    <p className="text-muted-foreground">운영 지표 요약 및 전체 활동 기록</p>
                 </div>
                 <Button variant="outline" onClick={() => void refresh()}>
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Refresh
                 </Button>
             </div>
+
+            {/* Metrics Cards */}
+            <MetricCards />
 
             {/* Filters */}
             <div className="flex flex-wrap gap-2">

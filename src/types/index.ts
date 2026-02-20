@@ -34,6 +34,10 @@ export interface WorkItem {
     due_at: string | null       // ISO 8601
     source_app: string | null
     source_ref: string | null
+    started_at: string | null   // ISO 8601 — active 전환 시점
+    completed_at: string | null // ISO 8601 — done 전환 시점
+    deleted_at: string | null   // ISO 8601 — soft delete 시점
+    actual_min: number | null   // 실제 소요 시간 (분)
     created_at: string
     updated_at: string
 }

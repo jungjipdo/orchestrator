@@ -7,17 +7,18 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useOrchestration } from '../../hooks/useOrchestration'
 import { useProjects } from '../../hooks/useProjects'
 import { useWorkItems } from '../../hooks/useWorkItems'
-import { useGitHub } from '../../hooks/useGitHub'
 import { useEditorModels } from '../../hooks/useEditorModels'
 import { useModelScores } from '../../hooks/useModelScores'
 import { getReadme, listCommits, getCommitDetail, listIssues } from '../../lib/github/githubApi'
+import { analyzeTaskWithGemini, type GeminiTaskResult, type ProjectContext } from '../../lib/gemini'
+import { logEvent } from '../../lib/supabase/eventLogs'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
+import { useAuth } from '../../hooks/useAuth'
 import type { EditorType, AIModel } from '../../types/index'
 import { TASK_TYPES } from '../../features/orchestration/taskTypes'
 import type { TaskType } from '../../features/orchestration/taskTypes'
-import { analyzeTaskWithGemini, type GeminiTaskResult, type ProjectContext } from '../../lib/gemini'
 import {
     Plus,
     Sparkles,
@@ -94,14 +95,16 @@ interface AnalyzedTask {
     reference?: string
 }
 
-export function OrchestrationView() {
+export function OrchestrationView({ onNavigateToPlan }: { onNavigateToPlan?: () => void }) {
+    const { user } = useAuth()
+    const githubToken = user?.user_metadata?.github_token
+
+    // 설정 상태훅
     const { registeredEditors, stats, toggle } = useOrchestration()
-    const { projects } = useProjects()
-    const { addItem } = useWorkItems()
-    const { connection } = useGitHub()
+    const { projects, updateProjectStatus } = useProjects()
+    const { items: allItems, addItem } = useWorkItems()
     const { editorModels } = useEditorModels()
     const { scores: modelScores } = useModelScores()
-    const githubToken = connection?.access_token ?? null
 
     // ─── 에디터에서 사용 가능한 모델 (DB 데이터 기반 합집합) ───
     const availableModels = useMemo(() => {
@@ -141,18 +144,26 @@ export function OrchestrationView() {
         setContextLoading(true)
         try {
             const [owner, repo] = project.repo_full_name.split('/')
-            const [readme, commits, issues] = await Promise.all([
+            const [readmeResult, commitsResult, issuesResult] = await Promise.allSettled([
                 getReadme(githubToken, owner, repo),
                 listCommits(githubToken, owner, repo, undefined, 10),
                 listIssues(githubToken, owner, repo, 'open', 10),
-            ]) as [string | null, any[], any[]]
+            ])
+
+            const readme = readmeResult.status === 'fulfilled' ? readmeResult.value : null
+            const commits = commitsResult.status === 'fulfilled' ? commitsResult.value : []
+            const issues = issuesResult.status === 'fulfilled' ? issuesResult.value : []
 
             // 커밋 상세 (최근 5개의 변경 파일)
             const recentShas = commits.slice(0, 5).map(c => c.sha)
-            const detailResults = await Promise.all(
+            const detailResults = await Promise.allSettled(
                 recentShas.map(sha => getCommitDetail(githubToken, owner, repo, sha)),
             )
-            const changedFiles = [...new Set(detailResults.flat().map(f => f.filename))]
+            const changedFiles = [...new Set(detailResults
+                .filter((r): r is PromiseFulfilledResult<any[]> => r.status === 'fulfilled')
+                .flatMap(r => r.value)
+                .map(f => f.filename)
+            )]
 
             setProjectContext({
                 repoName: project.repo_full_name,
@@ -160,7 +171,12 @@ export function OrchestrationView() {
                 readme,
                 recentCommits: commits.map(c => c.commit.message.split('\n')[0]),
                 recentChangedFiles: changedFiles,
-                openIssues: issues.map(i => ({ number: i.number, title: i.title, body: i.body ?? '' })),
+                openIssues: issues.map(i => ({
+                    number: i.number,
+                    title: i.title,
+                    body: i.body ?? '',
+                    labels: i.labels ? i.labels.map(l => l.name) : []
+                })),
                 fetchedAt: Date.now(),
             })
         } catch {
@@ -201,7 +217,7 @@ export function OrchestrationView() {
                 projectContext ?? undefined,
                 modelScores,
             )
-            setAnalyzedTasks(results.map((r: GeminiTaskResult) => ({
+            const newAnalyzedTasks = results.map((r: GeminiTaskResult) => ({
                 instruction: r.instruction,
                 task_type: r.task_type,
                 suggested_model: availableModels.includes(r.suggested_model) ? r.suggested_model : availableModels[0],
@@ -209,7 +225,17 @@ export function OrchestrationView() {
                 estimate_min: r.estimate_min,
                 selected: false,
                 reference: r.reference,
-            })))
+            }))
+            setAnalyzedTasks(newAnalyzedTasks)
+            setExpandedTasks(new Set()) // 분석 새로 고침 시 닫힘 초기화
+            setSaveMessage(null)
+            // 추가: 오케스트레이션 분석 완료 기록 (비동기)
+            logEvent('orchestration_analyzed', {
+                project_id: selectedProjectId,
+                instruction_length: taskInput.length,
+                task_count: newAnalyzedTasks.length
+            }, 'ai').catch(console.error)
+
         } catch (err) {
             setAiError(err instanceof Error ? err.message : 'AI 분석 실패')
         } finally {
@@ -272,6 +298,23 @@ export function OrchestrationView() {
     const saveToWorkItems = async () => {
         if (selectedTasks.length === 0) return
 
+        // 중복 검사: 같은 프로젝트 내 동일 제목 확인
+        const existingTitles = new Set(
+            allItems
+                .filter(i => i.project_id === (selectedProjectId || null) && !i.deleted_at)
+                .map(i => i.title.trim().toLowerCase())
+        )
+        const duplicates = selectedTasks.filter(t =>
+            t.instruction.trim() && existingTitles.has(t.instruction.trim().toLowerCase())
+        )
+        if (duplicates.length > 0) {
+            const dupNames = duplicates.map(d => `"${d.instruction}"`).join(', ')
+            const proceed = window.confirm(
+                `이미 동일한 작업이 존재합니다:\n${dupNames}\n\n그래도 저장하시겠습니까?`
+            )
+            if (!proceed) return
+        }
+
         setSaving(true)
         setAiError(null)
         try {
@@ -283,6 +326,7 @@ export function OrchestrationView() {
                     estimate_min: task.estimate_min,
                     status: 'backlog',
                     next_action: `[${task.task_type}] ${MODEL_CONFIG[task.suggested_model]?.label ?? task.suggested_model}`,
+                    source_app: 'orchestration',
                 })
             }
             const targetName = selectedProject ? selectedProject.repo_name : 'Backlog'
@@ -291,6 +335,21 @@ export function OrchestrationView() {
             // 저장 성공 메시지에 위치 표시
             setSaveMessage(`${selectedTasks.length}개 작업 → ${targetName}에 저장 완료! (Release Plan 뷰에서 확인 가능)`)
             setAnalyzedTasks(prev => prev.filter(t => !t.selected))
+
+            // UX 초기화 및 페이지 이동
+            setTaskInput('')
+            if (selectedProjectId) {
+                const proj = projects.find(p => p.id === selectedProjectId)
+                if (proj && proj.status !== 'active') {
+                    await updateProjectStatus(selectedProjectId, { status: 'active' })
+                }
+            }
+            if (onNavigateToPlan) {
+                // 토스트나 시각적 피드백을 위해 약간의 딜레이 후 이동
+                setTimeout(() => {
+                    onNavigateToPlan()
+                }, 1000)
+            }
         } catch (err) {
             setAiError(err instanceof Error ? err.message : '저장 실패')
         } finally {
@@ -298,7 +357,12 @@ export function OrchestrationView() {
         }
     }
 
-    const [saveMessage, setSaveMessage] = useState('')
+    const [saveMessage, setSaveMessage] = useState<string | null>(null)
+
+    // 카드 펼침 상태 (인덱스 Set)
+    const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set())
+
+    // ─── 헬퍼 ───
     const totalEstimate = analyzedTasks.reduce((s, t) => s + t.estimate_min, 0)
 
     return (
@@ -507,33 +571,53 @@ export function OrchestrationView() {
                             <div className="grid gap-3">
                                 {analyzedTasks.map((task, idx) => {
                                     const modelCfg = MODEL_CONFIG[task.suggested_model] ?? { label: task.suggested_model, color: '' }
+                                    const isExpanded = expandedTasks.has(idx)
+
                                     return (
                                         <div
                                             key={idx}
                                             onClick={() => toggleSelect(idx)}
                                             className={`
-                                                relative p-5 rounded-xl border-2 cursor-pointer transition-all select-none
+                                                relative p-6 rounded-xl border-2 cursor-pointer transition-all select-none
                                                 ${task.selected
                                                     ? 'border-primary bg-primary/5 shadow-md'
                                                     : 'border-muted bg-card hover:border-muted-foreground/30 hover:shadow-sm'
                                                 }
                                             `}
                                         >
-                                            {/* 선택 체크 */}
-                                            <div className={`
-                                                absolute top-4 right-4 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all
-                                                ${task.selected
-                                                    ? 'border-primary bg-primary text-white'
-                                                    : 'border-muted-foreground/30'
-                                                }
-                                            `}>
-                                                {task.selected && <CheckCircle className="w-4 h-4" />}
+                                            {/* 우측 상단 컨트롤: 펼치기 + 선택 체크 */}
+                                            <div className="absolute top-5 right-5 flex items-center gap-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        setExpandedTasks(prev => {
+                                                            const n = new Set(prev)
+                                                            if (n.has(idx)) n.delete(idx)
+                                                            else n.add(idx)
+                                                            return n
+                                                        })
+                                                    }}
+                                                    className="p-1 rounded text-muted-foreground hover:bg-muted/60 transition-colors"
+                                                >
+                                                    <span className="text-xs font-medium px-1">
+                                                        {isExpanded ? '접기' : '세부 정보'}
+                                                    </span>
+                                                </button>
+                                                <div className={`
+                                                    w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all
+                                                    ${task.selected
+                                                        ? 'border-primary bg-primary text-white'
+                                                        : 'border-muted-foreground/30'
+                                                    }
+                                                `}>
+                                                    {task.selected && <CheckCircle className="w-4 h-4" />}
+                                                </div>
                                             </div>
 
                                             {/* 작업 제목 — 시각적 구분 */}
-                                            <div className="pr-10 mb-3">
-                                                <input
-                                                    type="text"
+                                            <div className="pr-[120px] mb-2">
+                                                <textarea
                                                     value={task.instruction}
                                                     onChange={e => {
                                                         e.stopPropagation()
@@ -542,58 +626,89 @@ export function OrchestrationView() {
                                                     onClick={e => e.stopPropagation()}
                                                     onMouseDown={e => e.stopPropagation()}
                                                     placeholder="작업 설명을 입력하세요"
-                                                    className="w-full bg-muted/40 text-base font-semibold border border-muted rounded-lg px-3 py-2 outline-none focus:border-primary focus:bg-background transition-colors"
+                                                    rows={1}
+                                                    className="w-full bg-transparent text-lg font-semibold border-b border-transparent px-1 py-1 outline-none focus:border-primary focus:bg-background transition-colors resize-none overflow-hidden placeholder:text-muted-foreground/50"
+                                                    style={{ minHeight: '36px' }}
+                                                    onInput={(e) => {
+                                                        const target = e.target as HTMLTextAreaElement
+                                                        target.style.height = 'auto'
+                                                        target.style.height = target.scrollHeight + 'px'
+                                                    }}
                                                 />
                                             </div>
 
-                                            {/* 하단: 타입 | 모델 | 예상시간 */}
-                                            <div className="flex items-center gap-3 flex-wrap">
-                                                <select
-                                                    value={task.task_type}
-                                                    onChange={e => changeTaskType(idx, e.target.value as TaskType)}
-                                                    onClick={e => e.stopPropagation()}
-                                                    onMouseDown={e => e.stopPropagation()}
-                                                    className="px-3 py-2 border rounded-lg text-sm bg-background font-medium min-w-[140px]"
-                                                >
-                                                    {TASK_TYPES.map(tt => (
-                                                        <option key={tt.type} value={tt.type}>{tt.label}</option>
-                                                    ))}
-                                                </select>
+                                            {/* 태스크 타입 및 주요 요약 (항상 표시되는 보조 정보) */}
+                                            {!isExpanded && (
+                                                <div className="flex items-center gap-2 mt-2 px-1 text-sm text-muted-foreground">
+                                                    <Badge variant="outline" className={`font-normal ${modelCfg.color}`}>{modelCfg.label}</Badge>
+                                                    <span>•</span>
+                                                    <span>{TASK_TYPES.find(t => t.type === task.task_type)?.label || task.task_type}</span>
+                                                    <span>•</span>
+                                                    <span>~{task.estimate_min}m</span>
+                                                </div>
+                                            )}
 
-                                                <select
-                                                    value={task.suggested_model}
-                                                    onChange={e => updateTask(idx, { suggested_model: e.target.value as AIModel })}
-                                                    onClick={e => e.stopPropagation()}
-                                                    onMouseDown={e => e.stopPropagation()}
-                                                    className="px-3 py-2 border rounded-lg text-sm bg-background font-medium min-w-[180px]"
-                                                >
-                                                    {availableModels.map(m => (
-                                                        <option key={m} value={m}>{MODEL_CONFIG[m]?.label ?? m}</option>
-                                                    ))}
-                                                </select>
+                                            {/* 하단 세부 정보 (접기/펼치기) */}
+                                            {isExpanded && (
+                                                <div className="flex flex-col gap-4 mt-5 p-4 rounded-lg bg-muted/30 border border-muted" onClick={e => e.stopPropagation()}>
+                                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                                        <div>
+                                                            <label className="text-xs font-medium text-muted-foreground block mb-1.5">유형 (표시색)</label>
+                                                            <select
+                                                                value={task.task_type}
+                                                                onChange={e => changeTaskType(idx, e.target.value as TaskType)}
+                                                                className="w-full px-3 py-2 border rounded-md text-sm bg-background font-medium"
+                                                            >
+                                                                {TASK_TYPES.map(tt => (
+                                                                    <option key={tt.type} value={tt.type}>{tt.label}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
 
-                                                <span className="flex items-center gap-1.5 text-sm text-muted-foreground px-3 py-2 bg-muted/50 rounded-lg">
-                                                    <Clock className="w-3.5 h-3.5" />
-                                                    ~{task.estimate_min}min
-                                                </span>
+                                                        <div>
+                                                            <label className="text-xs font-medium text-muted-foreground block mb-1.5">할당 모델</label>
+                                                            <select
+                                                                value={task.suggested_model}
+                                                                onChange={e => updateTask(idx, { suggested_model: e.target.value as AIModel })}
+                                                                className="w-full px-3 py-2 border rounded-md text-sm bg-background font-medium"
+                                                            >
+                                                                {availableModels.map(m => (
+                                                                    <option key={m} value={m}>{MODEL_CONFIG[m]?.label ?? m}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
 
-                                                <Badge variant="outline" className={`${modelCfg.color} text-xs`}>
-                                                    {modelCfg.label}
-                                                </Badge>
+                                                        <div>
+                                                            <label className="text-xs font-medium text-muted-foreground block mb-1.5">예상 시간 (분)</label>
+                                                            <input
+                                                                type="number"
+                                                                value={task.estimate_min}
+                                                                onChange={e => updateTask(idx, { estimate_min: parseInt(e.target.value) || 0 })}
+                                                                className="w-full px-3 py-2 border rounded-md text-sm bg-background font-medium"
+                                                                min={1}
+                                                            />
+                                                        </div>
 
-                                                {task.reference && (
-                                                    <span className="text-[10px] text-muted-foreground/60 italic ml-auto">
-                                                        ref: {task.reference}
-                                                    </span>
-                                                )}
-                                            </div>
+                                                        <div>
+                                                            <label className="text-xs font-medium text-muted-foreground block mb-1.5">참조 컨텍스트</label>
+                                                            <input
+                                                                type="text"
+                                                                value={task.reference ?? ''}
+                                                                onChange={e => updateTask(idx, { reference: e.target.value })}
+                                                                placeholder="ex) User Prompt"
+                                                                className="w-full px-3 py-2 border rounded-md text-sm bg-background"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )
                                 })}
                             </div>
 
                             {/* 추가 + 저장 */}
-                            <div className="flex gap-3">
+                            <div className="flex gap-3 mt-6">
                                 <Button variant="outline" onClick={addEmptyTask} className="flex-1 h-12 text-base">
                                     <Plus className="w-5 h-5 mr-2" />
                                     작업 추가
@@ -610,7 +725,7 @@ export function OrchestrationView() {
                                     )}
                                     {saving
                                         ? '저장 중...'
-                                        : `${selectedTasks.length}개 ${selectedProject ? selectedProject.repo_name + '에' : 'Backlog에'} 저장`
+                                        : `${selectedTasks.length}개 ${selectedProjectId ? projects.find(p => p.id === selectedProjectId)?.repo_name + '에' : 'Backlog에'} 저장`
                                     }
                                 </Button>
                             </div>

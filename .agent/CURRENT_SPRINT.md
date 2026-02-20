@@ -4,9 +4,9 @@
 Phase 1: 멀티유저 SaaS 전환 준비 — 레거시 정리 + 제품화 기반 마련
 
 ## Active Task
-- **ID**: phase1-product-pivot
+- **ID**: codebase-cleanup
 - **Branch**: main (단일 브랜치)
-- **Status**: 📝 제품 방향 전환 결정, 문서 업데이트 완료
+- **Status**: ✅ 완료 — 레거시 제거 + 문서 업데이트 + README 재작성
 - **Worktree**: N/A
 
 ## Key Decisions
@@ -47,25 +47,39 @@ Phase 1: 멀티유저 SaaS 전환 준비 — 레거시 정리 + 제품화 기반
 - [x] README.md 전면 개편 (제품 소개)
 - [x] PHASES.md 전면 개편 (제품화 로드맵)
 
+## Completed (Release Plan UX 리팩터링)
+- [x] 좌(Projects&Plans) / 우(Active Releases) 50:50 레이아웃
+- [x] 양쪽 모두 2-col 그리드
+- [x] 프로젝트 상세 오버레이 모달 (반투명 배경 + slideUp 애니메이션)
+- [x] 개별 삭제 버튼 제거 → 인라인 삭제 모드 (카드 클릭 선택 + 벌크 삭제)
+- [x] Optimistic 드래그 (A↔B 전환 시 페이지 깜빡임 없음)
+- [x] Active 카드 드래그로 비활성화 (B→A)
+- [x] 텍스트 잘림 수정 (line-clamp-2, flex-wrap)
+- [x] 섹션 순서: 드래그 제거 → Swap Order 버튼
+- [x] 스크롤바 숨기기 (scrollbar-hide CSS)
+- [x] `/commit` 워크플로우 추가
+
+## Completed (코드베이스 정리)
+- [x] 레거시 코드 제거 (scheduler, workflow, integration, llm)
+- [x] PROJECT.md 현행화 (Auth 완료, 폴더 구조 반영)
+- [x] PHASES.md 완료 항목 체크
+- [x] README.md 재작성 (현재 기능 기준)
+- [x] tsc + build 검증 통과
+
 ## Files in Focus
-- `.agent/PROJECT.md` — 제품 컨텍스트 (업데이트 완료)
-- `.agent/PHASES.md` — 로드맵 (업데이트 완료)
-- `README.md` — 제품 소개 (업데이트 완료)
+- `.agent/PROJECT.md` — 폴더 구조 + DB 섹션 현행화
+- `.agent/PHASES.md` — Phase 1 완료 항목 체크
+- `README.md` — 전면 재작성
 
 ## Blockers
 - 없음
 
 ## Next Steps (Phase 1 — 제품화 기반)
-1. 레거시 코드 제거:
-   - `features/scheduler/slotCalculator.ts`, `conflictDetector.ts`, `priorityEngine.ts`
-   - `components/command/CommandBar.tsx`, `CommandResult.tsx`, `CommandToolbar.tsx`, `SuggestionPanel.tsx`
-   - `components/common/TimeBlock.tsx`, `components/dashboard/ScheduleSlot.tsx`
-   - `types/index.ts` 내 Command/Schedule 관련 타입
-2. 오케스트레이션 핵심 로직 설계 + 구현
-3. Auth 시스템 (GitHub OAuth)
-4. 테이블 `user_id` + RLS 정책
+1. 랜딩 페이지 설계 + 구현
+2. 온보딩 플로우 (GitHub 연결 → 프로젝트 생성 → 첫 작업)
+3. 멀티유저 시나리오 브라우저 테스팅
 
 ---
-*Last updated: 2026-02-19T13:38 KST*
+*Last updated: 2026-02-21T02:45 KST*
 *This file is used for immediate context recovery at session start.*
 *Update this file when switching tasks.*

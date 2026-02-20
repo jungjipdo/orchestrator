@@ -19,21 +19,21 @@
 ### 개발 프로세스
 
 #### Design
-- [ ] 제품화 요구사항 분석
-- [ ] Auth + 멀티테넌시 스키마 설계
+- [x] 제품화 요구사항 분석
+- [x] Auth + 멀티테넌시 스키마 설계
 - [ ] 랜딩 페이지 + 온보딩 UX 설계
-- [ ] `implementation_plan.md` 작성 → 승인
+- [x] `implementation_plan.md` 작성 → 승인
 
 #### Implementation
-- [ ] 레거시 코드 제거 (scheduler/slot, command 시스템)
-- [ ] Auth 시스템 (GitHub OAuth + Supabase Auth)
-- [ ] 테이블 `user_id` 추가 + RLS 정책
+- [x] 레거시 코드 제거 (scheduler, workflow, integration, llm)
+- [x] Auth 시스템 (GitHub OAuth + Supabase Auth)
+- [x] 테이블 `user_id` 추가 + RLS 정책
 - [ ] 랜딩 페이지
 - [ ] 온보딩 플로우
 
 #### Testing
-- [ ] 타입 체크 (tsc --noEmit)
-- [ ] 빌드 성공 (vite build)
+- [x] 타입 체크 (tsc --noEmit)
+- [x] 빌드 성공 (vite build)
 - [ ] 멀티유저 시나리오 브라우저 테스팅
 
 ---

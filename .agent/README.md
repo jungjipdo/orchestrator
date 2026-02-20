@@ -24,7 +24,10 @@ cp -r ~/.gemini/.agent-template 프로젝트경로/.agent
 └── workflows/
     ├── start.md         # /start - 세션 시작 체크
     ├── verify.md        # /verify - 빌드 & 테스트
-    └── pre-commit.md    # /pre-commit - 커밋 전 검증
+    ├── pre-commit.md    # /pre-commit - 커밋 전 검증
+    ├── commit.md        # /commit - 자동 커밋 메시지 추론
+    ├── end.md           # /end - 세션 종료 요약
+    └── multi-model-test.md  # /multi-model-test - 멀티모델 병렬 테스트
 ```
 
 ## 워크플로우 명령
@@ -34,6 +37,9 @@ cp -r ~/.gemini/.agent-template 프로젝트경로/.agent
 | `/start` | 세션 시작 시 상태 확인 | 전체 자동 |
 | `/verify` | 빌드 및 테스트 실행 | 전체 자동 |
 | `/pre-commit` | 커밋 전 검증 | 일부 자동 |
+| `/commit` | 커밋 메시지 자동 추론 + 커밋 | 일부 자동 |
+| `/end` | 세션 종료 요약 + 핸드오프 | 일부 자동 |
+| `/multi-model-test` | 멀티모델 병렬 테스트 | 일부 자동 |
 
 ## // turbo 란?
 

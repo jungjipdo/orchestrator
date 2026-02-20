@@ -168,10 +168,10 @@ interface LLMAdapter {
 | `session_logs` | 에이전트 작업 세션 기록 |
 | `event_logs` | 이벤트 파이프라인 로그 (에이전트 활동 포함) |
 
-### 제품화 시 추가 필요
-- 모든 테이블에 `user_id` 컬럼 + RLS 정책
-- `agent_connections` 테이블 신설
-- GitHub OAuth 기반 인증
+### 구현 완료
+- GitHub OAuth 기반 인증 (AuthGuard + LoginPage)
+- `agent_connections` 테이블 + CRUD
+- `model_scores`, `editor_models` 테이블
 
 ### 마이그레이션 관리
 - 경로: `supabase/migrations/NNN_description.sql`
@@ -202,22 +202,21 @@ interface LLMAdapter {
 ```
 src/
 ├── components/        # UI 컴포넌트
-│   ├── auth/          # 인증 관련
-│   ├── common/        # 공통 위젯
-│   ├── dashboard/     # 대시보드 관련
-│   ├── github/        # GitHub 연동
+│   ├── auth/          # 인증 (AuthGuard, LoginPage)
+│   ├── common/        # 공통 위젯 (AppLayout, ConfirmDialog)
+│   ├── dashboard/     # 대시보드 패널
+│   ├── github/        # GitHub 연동 (ProjectGitHubPanel)
 │   ├── ui/            # shadcn/ui 컴포넌트
-│   └── views/         # 탭 뷰 컴포넌트
+│   └── views/         # 탭 뷰 (6개)
 ├── features/          # 비즈니스 로직 모듈
-│   ├── scheduler/     # 스케줄링 엔진 (리팩토링 예정)
-│   ├── workflow/      # 워크플로우 관리 (리팩토링 예정)
-│   ├── llm/           # LLM 어댑터 (Gemini/Codex)
-│   └── integration/   # 에이전트 연동
+│   └── orchestration/ # 오케스트레이션 엔진 (advisor, riskAnalyzer, taskDecomposer)
 ├── hooks/             # 커스텀 React hooks
 ├── lib/               # 공유 유틸리티
-│   ├── supabase/      # Supabase 클라이언트
+│   ├── supabase/      # Supabase CRUD
 │   ├── github/        # GitHub API
 │   ├── events/        # 이벤트 파이프라인
+│   ├── domain/        # 도메인 로직
+│   ├── metrics/       # 메트릭 계산
 │   └── utils/         # 범용 유틸리티
 ├── types/             # TypeScript 인터페이스
 └── App.tsx            # 루트 컴포넌트
@@ -249,16 +248,7 @@ src/
 - 의미 있는 단위로 커밋/푸시
 
 ## Known Issues
-- (없음 — 레거시 코드 정리 완료)
-
-## 향후 활용 보존 파일
-> 아래 파일들은 현재 UI에서 사용하지 않지만, 에이전트 오케스트레이션 구현 시 재활용 예정.
-
-| 파일 | 기능 | 활용 계획 |
-|------|------|-----------|
-| `features/scheduler/conflictDetector.ts` | 일정 겹침 감지 (FixedEvent 간, Slot 간 충돌 검사) | 에이전트 간 작업 충돌 감지로 확장 |
-| `features/scheduler/priorityEngine.ts` | 작업 우선순위 점수 계산 (기한, 에너지, 중요도 기반) | 에이전트 작업 자동 정렬에 활용 |
-| `features/workflow/stateMachine.ts` | 상태 전이 검증 (backlog→active 등 규칙 + 필수값 체크) | 핵심 비즈니스 로직, 그대로 사용 |
+- (없음)
 
 ---
 *This file is referenced by the agent at session start.*

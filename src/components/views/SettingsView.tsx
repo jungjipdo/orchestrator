@@ -49,10 +49,6 @@ const ALL_EDITORS: { type: EditorType; label: string }[] = [
     { type: 'claude_code', label: 'Claude Code' },
     { type: 'codex', label: 'Codex' },
     { type: 'antigravity', label: 'Antigravity' },
-    { type: 'vscode', label: 'VS Code' },
-    { type: 'terminal', label: 'Terminal' },
-    { type: 'windsurf', label: 'Windsurf' },
-    { type: 'zed', label: 'Zed' },
 ]
 
 const REPOS_PER_PAGE = 5
@@ -77,7 +73,7 @@ export function SettingsView() {
     } = useGitHub()
 
     const { scores, updateScore } = useModelScores()
-    const { editorModels, updateModels } = useEditorModels()
+    const { editorModels } = useEditorModels()
 
     const [repoPage, setRepoPage] = useState(0)
     const [confirmDisconnect, setConfirmDisconnect] = useState(false)
@@ -124,14 +120,18 @@ export function SettingsView() {
         })
     }
 
-    // ─── 에디터 모델 토글 핸들러 ───
-    const handleToggleModel = (editorType: EditorType, modelKey: AIModel) => {
-        const current = editorModels.find(e => e.editorType === editorType)
-        const currentModels = current?.supportedModels ?? []
-        const newModels = currentModels.includes(modelKey)
-            ? currentModels.filter(m => m !== modelKey)
-            : [...currentModels, modelKey]
-        void updateModels(editorType, newModels)
+    const handleResetScores = async () => {
+        if (!confirm('모든 AI 모델 점수를 기본값으로 초기화하시겠습니까?')) return
+        try {
+            await Promise.all(
+                (Object.keys(DEFAULT_SCORES) as AIModel[]).map(key =>
+                    updateScore(key, DEFAULT_SCORES[key])
+                )
+            )
+            setLocalScores({}) // 로컬 점수 리셋
+        } catch (err) {
+            console.error('점수 초기화 실패:', err)
+        }
     }
 
     return (
@@ -273,9 +273,14 @@ export function SettingsView() {
 
             {/* AI Model Scoring */}
             <Card>
-                <CardHeader>
-                    <CardTitle className="text-base">AI Model Scoring</CardTitle>
-                    <p className="text-xs text-muted-foreground">각 모델의 카테고리별 성능 점수 (0-100). AI 추천 시 높은 점수 모델이 우선됩니다.</p>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                    <div className="space-y-1">
+                        <CardTitle className="text-base">AI Model Scoring</CardTitle>
+                        <p className="text-xs text-muted-foreground">각 모델의 카테고리별 성능 점수 (0-100). AI 추천 시 높은 점수 모델이 우선됩니다.</p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => void handleResetScores()}>
+                        기본 점수로 초기화
+                    </Button>
                 </CardHeader>
                 <CardContent>
                     <div className="overflow-x-auto">
@@ -348,7 +353,7 @@ export function SettingsView() {
             <Card>
                 <CardHeader>
                     <CardTitle className="text-base">Editor → Model Mapping</CardTitle>
-                    <p className="text-xs text-muted-foreground">에디터별 지원 모델을 설정합니다. AI 분석 시 선택된 에디터의 모델만 사용됩니다.</p>
+                    <p className="text-xs text-muted-foreground">에디터별 지원 모델 현황입니다 (고정).</p>
                 </CardHeader>
                 <CardContent>
                     <div className="overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
@@ -372,25 +377,23 @@ export function SettingsView() {
                                     const entry = editorModels.find(e => e.editorType === editor.type)
                                     const models = entry?.supportedModels ?? []
                                     return (
-                                        <tr key={editor.type} className="border-b last:border-0">
+                                        <tr key={editor.type} className="border-b last:border-0 hover:bg-muted/5">
                                             <td className="py-3 pr-4 font-medium text-xs sticky left-0 bg-background z-10">{editor.label}</td>
                                             {ALL_MODELS.map(m => {
                                                 const isChecked = models.includes(m.key)
                                                 return (
                                                     <td key={m.key} className="py-3 px-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleToggleModel(editor.type, m.key)}
+                                                        <div
                                                             className={`
-                                                                w-6 h-6 rounded border-2 flex items-center justify-center transition-all cursor-pointer mx-auto
+                                                                w-6 h-6 rounded border-2 flex items-center justify-center mx-auto opacity-80 cursor-default
                                                                 ${isChecked
-                                                                    ? 'border-primary bg-primary text-white'
-                                                                    : 'border-muted-foreground/20 hover:border-primary/50'
+                                                                    ? 'border-primary/80 bg-primary/80 text-white'
+                                                                    : 'border-muted-foreground/10 bg-transparent'
                                                                 }
                                                             `}
                                                         >
                                                             {isChecked && <Check className="w-3.5 h-3.5" />}
-                                                        </button>
+                                                        </div>
                                                     </td>
                                                 )
                                             })}

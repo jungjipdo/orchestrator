@@ -71,7 +71,6 @@ export interface SessionLog {
 // 에디터 — 사용자가 쓰는 개발 도구 (타일 토글로 등록)
 export type EditorType =
     | 'cursor' | 'claude_code' | 'codex' | 'antigravity'
-    | 'vscode' | 'windsurf' | 'zed' | 'terminal'
 
 // AI 모델 — 2026.02.19 기준 최신 (오케스트레이터 추천용)
 export type AIModel =

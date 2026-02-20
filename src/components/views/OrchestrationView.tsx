@@ -59,20 +59,7 @@ const EDITORS: EditorConfig[] = [
     {
         type: 'antigravity', label: 'Antigravity', icon: '/Antigravity.png', enabled: true,
         supportedModels: ['gemini_3_pro', 'gemini_3_flash', 'gemini_3_deep_think', 'gemini_2_5_pro']
-    },
-    {
-        type: 'vscode', label: 'VS Code', icon: '/Code.png', enabled: true,
-        supportedModels: ['claude_sonnet_4_6', 'claude_opus_4_6', 'gpt_5_3_codex', 'gpt_5_2_codex', 'gemini_3_pro', 'gemini_3_flash']
-    },
-    {
-        type: 'terminal', label: 'Terminal', icon: '/Terminal.png', enabled: true,
-        supportedModels: ['claude_sonnet_4_6', 'claude_opus_4_6', 'claude_haiku_4_5', 'gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex', 'gemini_3_pro', 'gemini_3_flash', 'gemini_3_deep_think']
-    },
-    {
-        type: 'windsurf', label: 'Windsurf', enabled: true,
-        supportedModels: ['claude_sonnet_4_6', 'claude_opus_4_6', 'gpt_5_3_codex_spark', 'gpt_5_2_codex']
-    },
-    { type: 'zed', label: 'Zed', enabled: false, supportedModels: [] },
+    }
 ]
 
 // ─── AI 모델 설정 (2026.02.19 최신) ───

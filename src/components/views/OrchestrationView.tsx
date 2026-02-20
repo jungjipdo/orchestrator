@@ -566,7 +566,7 @@ export function OrchestrationView() {
                                                     className="px-3 py-2 border rounded-lg text-sm bg-background font-medium min-w-[180px]"
                                                 >
                                                     {availableModels.map(m => (
-                                                        <option key={m} value={m}>{MODEL_CONFIG[m].label}</option>
+                                                        <option key={m} value={m}>{MODEL_CONFIG[m]?.label ?? m}</option>
                                                     ))}
                                                 </select>
 

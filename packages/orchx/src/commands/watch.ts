@@ -1,15 +1,71 @@
 // ============================================
 // commands/watch.ts — orchx watch
-// chokidar 기반 파일 변경 감지 데몬
+// chokidar 기반 파일 변경 감지 + 계약 집행 + 서버 전송
 // ============================================
 
 import { Command } from 'commander'
 import chalk from 'chalk'
 import { readSession, updateSessionStats } from '../config/session.js'
+import { ContractEnforcer } from '../config/contractEnforcer.js'
+import { SyncClient } from './sync.js'
+
+// === 디바운스 유틸 ===
+
+function createDebounce(delay: number) {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const pending: string[] = []
+
+    return {
+        add(path: string) {
+            pending.push(path)
+            if (timer) clearTimeout(timer)
+            timer = setTimeout(() => {
+                const files = [...new Set(pending)]
+                pending.length = 0
+                timer = null
+                // 1g에서 tester.run(files)이 여기 연결됨
+                if (files.length > 0) {
+                    console.log(chalk.dim(`  📦 디바운스 완료: ${files.length}개 파일 변경 수집`))
+                }
+            }, delay)
+        },
+    }
+}
+
+// === SyncClient 생성 (환경변수 기반) ===
+
+async function tryCreateSyncClient(projectPath: string): Promise<SyncClient | null> {
+    // sync.ts의 loadEnv 로직을 재사용하기 위해 동적 import 방식 대신
+    // 환경변수/파일에서 직접 로드
+    try {
+        const { readFileSync, existsSync } = await import('node:fs')
+        const { join } = await import('node:path')
+
+        const searchPaths = [
+            join(projectPath, '.env.local'),
+            join(projectPath, '.env'),
+        ]
+
+        for (const envPath of searchPaths) {
+            if (!existsSync(envPath)) continue
+            const content = readFileSync(envPath, 'utf-8')
+            const vars: Record<string, string> = {}
+            for (const line of content.split('\n')) {
+                const match = line.match(/^([A-Z_]+)=["']?(.+?)["']?\s*$/)
+                if (match) vars[match[1]] = match[2]
+            }
+            const url = vars.ORCHX_SUPABASE_URL ?? vars.VITE_SUPABASE_URL
+            const key = vars.ORCHX_SUPABASE_ANON_KEY ?? vars.VITE_SUPABASE_ANON_KEY
+            if (url && key) return new SyncClient(url, key, projectPath)
+        }
+    } catch { /* 환경변수 없으면 sync 비활성화 */ }
+
+    return null
+}
 
 export function watchCommand(): Command {
     const cmd = new Command('watch')
-        .description('Watch for file changes in current project')
+        .description('Watch for file changes with contract enforcement')
         .action(async () => {
             const cwd = process.cwd()
             const session = readSession(cwd)
@@ -19,16 +75,77 @@ export function watchCommand(): Command {
                 process.exit(1)
             }
 
+            // 계약 집행기 초기화
+            const enforcer = new ContractEnforcer(
+                session.execution_contract ?? { allowed_paths: [], allowed_commands: [] }
+            )
+
+            // 서버 전송 클라이언트 (없으면 로컬 모드)
+            const syncClient = await tryCreateSyncClient(cwd)
+
             console.log(chalk.green('👁'), `Watching ${cwd}`)
             console.log(chalk.dim(`  Agent: ${session.agent_type} | Task: ${session.task_name}`))
+            if (enforcer.hasContract()) {
+                console.log(chalk.cyan('  🔒 계약 집행 활성화'))
+            } else {
+                console.log(chalk.dim('  📝 계약서 미설정 (제한 없음)'))
+            }
+            if (syncClient) {
+                console.log(chalk.dim('  📡 서버 전송 활성화'))
+            }
             console.log(chalk.dim('  Press Ctrl+C to stop'))
             console.log('')
 
-            // 동적 import (chokidar는 무거우므로 필요할 때만)
             const chokidar = await import('chokidar')
+            const debounce = createDebounce(2000)
 
             let filesChanged = session.files_changed
             let commitsDetected = session.commits_detected
+            let violationCount = 0
+
+            // === 파일 변경 핸들러 ===
+
+            async function handleFileChange(path: string, eventType: 'change' | 'add' | 'unlink') {
+                filesChanged++
+                const relative = path.replace(cwd + '/', '')
+
+                // 이모지 선택
+                const icon = eventType === 'add' ? chalk.green('  +')
+                    : eventType === 'unlink' ? chalk.red('  -')
+                        : chalk.blue('  ✎')
+
+                console.log(icon, chalk.dim(relative))
+                updateSessionStats(cwd, { files_changed: filesChanged })
+
+                // 1) 계약 위반 체크
+                const violation = enforcer.checkPath(relative)
+                if (violation) {
+                    violationCount++
+                    console.log(chalk.red('  🚨 계약 위반!'), chalk.yellow(violation.reason))
+
+                    // 서버에 위반 보고
+                    if (syncClient) {
+                        await syncClient.sendEvent('contract.violation', {
+                            path: relative,
+                            type: eventType,
+                            reason: violation.reason,
+                        }).catch(() => { /* 전송 실패 무시 */ })
+                    }
+                }
+
+                // 2) 서버에 변경 이벤트 전송
+                if (syncClient && !violation) {
+                    await syncClient.sendEvent('file.changed', {
+                        path: relative,
+                        type: eventType,
+                    }).catch(() => { /* 전송 실패 무시 */ })
+                }
+
+                // 3) 디바운스에 추가 (tester 연동 준비)
+                if (eventType !== 'unlink') {
+                    debounce.add(relative)
+                }
+            }
 
             const watcher = chokidar.watch(cwd, {
                 ignored: [
@@ -43,26 +160,9 @@ export function watchCommand(): Command {
                 persistent: true,
             })
 
-            watcher.on('change', (path: string) => {
-                filesChanged++
-                const relative = path.replace(cwd + '/', '')
-                console.log(chalk.blue('  ✎'), chalk.dim(relative))
-                updateSessionStats(cwd, { files_changed: filesChanged })
-            })
-
-            watcher.on('add', (path: string) => {
-                filesChanged++
-                const relative = path.replace(cwd + '/', '')
-                console.log(chalk.green('  +'), chalk.dim(relative))
-                updateSessionStats(cwd, { files_changed: filesChanged })
-            })
-
-            watcher.on('unlink', (path: string) => {
-                filesChanged++
-                const relative = path.replace(cwd + '/', '')
-                console.log(chalk.red('  -'), chalk.dim(relative))
-                updateSessionStats(cwd, { files_changed: filesChanged })
-            })
+            watcher.on('change', (path: string) => { void handleFileChange(path, 'change') })
+            watcher.on('add', (path: string) => { void handleFileChange(path, 'add') })
+            watcher.on('unlink', (path: string) => { void handleFileChange(path, 'unlink') })
 
             // .git/refs 감시로 커밋 감지
             const gitWatcher = chokidar.watch(`${cwd}/.git/refs`, {
@@ -79,7 +179,7 @@ export function watchCommand(): Command {
             // Ctrl+C 종료
             process.on('SIGINT', () => {
                 console.log('')
-                console.log(chalk.dim(`Session stats: ${filesChanged} files, ${commitsDetected} commits`))
+                console.log(chalk.dim(`Session stats: ${filesChanged} files, ${commitsDetected} commits, ${violationCount} violations`))
                 watcher.close()
                 gitWatcher.close()
                 process.exit(0)
@@ -88,3 +188,4 @@ export function watchCommand(): Command {
 
     return cmd
 }
+

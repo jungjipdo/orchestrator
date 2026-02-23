@@ -28,6 +28,7 @@ export interface Database {
                 Row: {
                     id: string
                     project_id: string | null
+                    goal_id: string | null
                     title: string
                     status: WorkItemStatus
                     next_action: string | null
@@ -46,6 +47,7 @@ export interface Database {
                 Insert: {
                     id?: string
                     project_id?: string | null
+                    goal_id?: string | null
                     title: string
                     status?: WorkItemStatus
                     next_action?: string | null
@@ -64,6 +66,7 @@ export interface Database {
                 Update: {
                     id?: string
                     project_id?: string | null
+                    goal_id?: string | null
                     title?: string
                     status?: WorkItemStatus
                     next_action?: string | null
@@ -248,6 +251,12 @@ export interface Database {
                     instruction: string
                     recommended_model: AIModel | null
                     status: AgentTaskStatus
+                    risk_tier: 'low' | 'mid' | 'high'
+                    allowed_paths: string[]
+                    allowed_commands: string[]
+                    budget_tokens: number | null
+                    budget_minutes: number | null
+                    contract_meta: Record<string, unknown>
                     started_at: string | null
                     ended_at: string | null
                     created_at: string
@@ -261,6 +270,12 @@ export interface Database {
                     instruction: string
                     recommended_model?: AIModel | null
                     status?: AgentTaskStatus
+                    risk_tier?: 'low' | 'mid' | 'high'
+                    allowed_paths?: string[]
+                    allowed_commands?: string[]
+                    budget_tokens?: number | null
+                    budget_minutes?: number | null
+                    contract_meta?: Record<string, unknown>
                     started_at?: string | null
                     ended_at?: string | null
                     created_at?: string
@@ -273,6 +288,12 @@ export interface Database {
                     instruction?: string
                     recommended_model?: AIModel | null
                     status?: AgentTaskStatus
+                    risk_tier?: 'low' | 'mid' | 'high'
+                    allowed_paths?: string[]
+                    allowed_commands?: string[]
+                    budget_tokens?: number | null
+                    budget_minutes?: number | null
+                    contract_meta?: Record<string, unknown>
                     started_at?: string | null
                     ended_at?: string | null
                     updated_at?: string
@@ -448,6 +469,108 @@ export interface Database {
                 }
                 Relationships: []
             }
+            projects: {
+                Row: {
+                    id: string
+                    repo_id: number
+                    repo_name: string
+                    repo_full_name: string
+                    repo_url: string
+                    description: string | null
+                    default_branch: string
+                    language: string | null
+                    is_private: boolean
+                    status: 'backlog' | 'active' | 'archived' | 'completed'
+                    metadata: Record<string, unknown>
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    repo_id: number
+                    repo_name: string
+                    repo_full_name: string
+                    repo_url: string
+                    description?: string | null
+                    default_branch?: string
+                    language?: string | null
+                    is_private?: boolean
+                    status?: 'backlog' | 'active' | 'archived' | 'completed'
+                    metadata?: Record<string, unknown>
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    repo_id?: number
+                    repo_name?: string
+                    repo_full_name?: string
+                    repo_url?: string
+                    description?: string | null
+                    default_branch?: string
+                    language?: string | null
+                    is_private?: boolean
+                    status?: 'backlog' | 'active' | 'archived' | 'completed'
+                    metadata?: Record<string, unknown>
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: []
+            }
+            goals: {
+                Row: {
+                    id: string
+                    project_id: string | null
+                    plan_id: string | null
+                    title: string
+                    status: 'backlog' | 'active' | 'done' | 'deferred'
+                    priority: number
+                    description: string | null
+                    due_at: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    project_id?: string | null
+                    plan_id?: string | null
+                    title: string
+                    status?: 'backlog' | 'active' | 'done' | 'deferred'
+                    priority?: number
+                    description?: string | null
+                    due_at?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    project_id?: string | null
+                    plan_id?: string | null
+                    title?: string
+                    status?: 'backlog' | 'active' | 'done' | 'deferred'
+                    priority?: number
+                    description?: string | null
+                    due_at?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: 'goals_project_id_fkey'
+                        columns: ['project_id']
+                        isOneToOne: false
+                        referencedRelation: 'projects'
+                        referencedColumns: ['id']
+                    },
+                    {
+                        foreignKeyName: 'goals_plan_id_fkey'
+                        columns: ['plan_id']
+                        isOneToOne: false
+                        referencedRelation: 'plans'
+                        referencedColumns: ['id']
+                    },
+                ]
+            }
         }
         Views: Record<string, never>
         Functions: Record<string, never>
@@ -500,3 +623,11 @@ export type ModelScoreUpdate = Database['public']['Tables']['model_scores']['Upd
 export type EditorModelRow = Database['public']['Tables']['editor_models']['Row']
 export type EditorModelInsert = Database['public']['Tables']['editor_models']['Insert']
 export type EditorModelUpdate = Database['public']['Tables']['editor_models']['Update']
+
+export type ProjectRow = Database['public']['Tables']['projects']['Row']
+export type ProjectInsert = Database['public']['Tables']['projects']['Insert']
+export type ProjectUpdate = Database['public']['Tables']['projects']['Update']
+
+export type GoalRow = Database['public']['Tables']['goals']['Row']
+export type GoalInsert = Database['public']['Tables']['goals']['Insert']
+export type GoalUpdate = Database['public']['Tables']['goals']['Update']

@@ -26,6 +26,7 @@ export type Importance = 'critical' | 'high' | 'medium' | 'low'
 export interface WorkItem {
     id: string
     project_id: string | null
+    goal_id: string | null
     title: string
     status: WorkItemStatus
     next_action: string | null
@@ -38,6 +39,43 @@ export interface WorkItem {
     completed_at: string | null // ISO 8601 — done 전환 시점
     deleted_at: string | null   // ISO 8601 — soft delete 시점
     actual_min: number | null   // 실제 소요 시간 (분)
+    created_at: string
+    updated_at: string
+}
+
+// === Goal 시스템 (013 마이그레이션 — 3-Tier 계층 구조) ===
+
+export type GoalStatus = 'backlog' | 'active' | 'done' | 'deferred'
+
+export interface Goal {
+    id: string
+    project_id: string | null   // Project 트랙 (XOR with plan_id)
+    plan_id: string | null      // Plan 트랙 (XOR with project_id)
+    title: string
+    status: GoalStatus
+    priority: number            // 1-5
+    description: string | null
+    due_at: string | null       // ISO 8601
+    created_at: string
+    updated_at: string
+}
+
+// === Project 시스템 (003 마이그레이션 — GitHub 레포 기반) ===
+
+export type ProjectStatus = 'backlog' | 'active' | 'archived' | 'completed'
+
+export interface Project {
+    id: string
+    repo_id: number
+    repo_name: string           // e.g. "orchestrator"
+    repo_full_name: string      // e.g. "jungjipdo/orchestrator"
+    repo_url: string
+    description: string | null
+    default_branch: string
+    language: string | null
+    is_private: boolean
+    status: ProjectStatus
+    metadata: Record<string, unknown>
     created_at: string
     updated_at: string
 }
@@ -114,6 +152,17 @@ export type AgentTaskStatus =
     | 'pending' | 'running' | 'completed'
     | 'failed' | 'cancelled'
 
+// === 하네스 안전장치 (Execution Contract) ===
+
+export type RiskTier = 'low' | 'mid' | 'high'
+
+export interface ExecutionContract {
+    allowed_paths: string[]         // glob 패턴 허용
+    allowed_commands: string[]      // 명령어 화이트리스트
+    budget_tokens?: number          // 최대 토큰 예산
+    budget_minutes?: number         // 최대 시간 예산 (분)
+}
+
 export interface AgentTask {
     id: string
     user_id: string
@@ -122,6 +171,12 @@ export interface AgentTask {
     instruction: string
     recommended_model: AIModel | null
     status: AgentTaskStatus
+    risk_tier: RiskTier
+    allowed_paths: string[]
+    allowed_commands: string[]
+    budget_tokens: number | null
+    budget_minutes: number | null
+    contract_meta: Record<string, unknown>
     started_at: string | null
     ended_at: string | null
     created_at: string

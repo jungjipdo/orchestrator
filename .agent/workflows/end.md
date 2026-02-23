@@ -30,11 +30,21 @@ git status --short && git log --oneline -5
 - `## Next Steps` — 다음 세션에서 이어갈 작업
 - `*Last updated*` 타임스탬프 갱신
 
-4. **task.md 업데이트** (brain 아티팩트)
+4. **Brain task.md 업데이트** (세션 간 핸드오프 핵심)
 - 완료 항목 `[x]`, 진행 중 `[/]` 마킹
 - 새로운 발견/이슈 추가
+- **CRITICAL**: `Overwrite: true`로 덮어쓰지 말고 `replace_file_content`로 수정
 
-5. **세션 요약 출력** (notify_user)
+5. **CURRENT_SPRINT.md에 brain task.md 경로 기록**
+다음 세션에서 바로 찾을 수 있게 CURRENT_SPRINT.md에 추가:
+```markdown
+## Brain Task Reference
+- Conversation ID: <현재 대화 ID>
+- Task Path: `~/.gemini/antigravity/brain/<conversation-id>/task.md`
+- Status: <진행중 / 완료>
+```
+
+6. **세션 요약 출력** (notify_user)
 다음 형식으로 사용자에게 요약:
 ```
 ## 세션 요약
@@ -46,6 +56,7 @@ git status --short && git log --oneline -5
 
 ### 다음 세션 TODO
 - (다음 대화에서 이어갈 작업)
+- Brain task.md 경로: `~/.gemini/antigravity/brain/<id>/task.md`
 
 ### 참고사항
 - (기억해야 할 결정사항, 메모)

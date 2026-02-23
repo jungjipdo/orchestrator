@@ -7,7 +7,7 @@ import { Command } from 'commander'
 import chalk from 'chalk'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { readSession, ensureOrchestratorDir } from '../config/session.js'
+import { readSession, ensureOrchestratorDir, updateSessionContract } from '../config/session.js'
 import { SyncClient } from './sync.js'
 
 // === CURRENT_TASK.md 템플릿 생성 ===
@@ -122,6 +122,12 @@ export function injectCommand(): Command {
             const taskPath = join(cwd, '.orchestrator', 'CURRENT_TASK.md')
             const content = generateTaskMarkdown(taskInfo)
             writeFileSync(taskPath, content, 'utf-8')
+
+            // 세션에 계약서 정보 동기화 (watch.ts/tester.ts가 참조)
+            updateSessionContract(cwd, {
+                allowed_paths: taskInfo.allowed_paths,
+                allowed_commands: taskInfo.allowed_commands,
+            })
 
             console.log(chalk.green('✓'), `Task 주입 완료: ${taskPath}`)
             console.log(chalk.dim(`  위험 등급: ${taskInfo.risk_tier}`))

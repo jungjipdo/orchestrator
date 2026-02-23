@@ -50,7 +50,7 @@ function runCommand(cmd: string, cwd: string): Promise<{ stdout: string; stderr:
             resolve({
                 stdout: stdout.toString(),
                 stderr: stderr.toString(),
-                exitCode: error?.code ?? 0,
+                exitCode: error ? (typeof error.code === 'number' ? error.code : 1) : 0,
             })
         })
     })
@@ -112,9 +112,9 @@ export async function runTests(
     report.tested_files = [...testFiles]
     report.total = testFiles.size
 
-    // 테스트 실행 (프로젝트에 test 스크립트가 있으면 실행)
+    // 테스트 실행
     const { stdout, stderr, exitCode } = await runCommand(
-        `npm run test -- --passWithNoTests 2>&1 || true`,
+        `npm run test -- --passWithNoTests 2>&1`,
         projectPath,
     )
 

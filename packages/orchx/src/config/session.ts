@@ -97,3 +97,14 @@ export function updateSessionStats(
     if (updates.commits_detected !== undefined) session.commits_detected = updates.commits_detected
     writeSession(projectPath, session)
 }
+
+export function updateSessionContract(
+    projectPath: string,
+    contract: OrchestratorSession['execution_contract'],
+): void {
+    const session = readSession(projectPath)
+    if (!session) return
+
+    session.execution_contract = contract
+    writeSession(projectPath, session)
+}

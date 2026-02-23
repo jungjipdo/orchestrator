@@ -132,8 +132,9 @@ export class SyncClient {
         return { retried: failed.length, succeeded }
     }
 
-    /** 서버에서 할당된 task 조회 */
+    /** 서버에서 할당된 task 조회 + claim */
     async fetchTask(sessionId: string): Promise<Record<string, unknown> | null> {
+        // pending 상태인 task를 시간 순으로 조회
         const { data, error } = await this.supabase
             .from('agent_tasks')
             .select('*')
@@ -147,7 +148,28 @@ export class SyncClient {
             return null
         }
 
-        return data as Record<string, unknown> | null
+        if (!data) return null
+
+        // claim: status를 running으로 변경하여 중복 할당 방지
+        const taskId = (data as Record<string, unknown>).id as string
+        const { error: claimError } = await this.supabase
+            .from('agent_tasks')
+            .update({ status: 'running' })
+            .eq('id', taskId)
+            .eq('status', 'pending') // optimistic lock: 아직 pending인 경우만
+
+        if (claimError) {
+            console.error(chalk.yellow('⚠'), `Task claim 실패 (다른 에이전트가 먼저 가져감)`)
+            return null
+        }
+
+        // 어떤 세션이 가져갔는지 기록
+        await this.sendEvent('task.claimed', {
+            task_id: taskId,
+            session_id: sessionId,
+        }).catch(() => { /* 전송 실패 무시 */ })
+
+        return data as Record<string, unknown>
     }
 
     /** 연결 상태 확인 */

@@ -50,11 +50,21 @@ export class ContractEnforcer {
         // 허용 명령이 비어있으면 제한 없음
         if (this.contract.allowed_commands.length === 0) return null
 
-        const baseCmd = cmd.split(' ')[0]
-        const isAllowed = this.contract.allowed_commands.some(allowed => {
-            const allowedBase = allowed.split(' ')[0]
-            return baseCmd === allowedBase || cmd.startsWith(allowed)
-        })
+        // 쉘 연산자 차단 (명령 체이닝/리다이렉트 우회 방지)
+        const dangerousPatterns = /[;&|`$><]|\|\||\&\&/
+        if (dangerousPatterns.test(cmd)) {
+            return {
+                violation: true,
+                type: 'command',
+                target: cmd,
+                reason: `위험한 쉘 연산자가 포함된 명령: ${cmd}`,
+            }
+        }
+
+        const baseCmd = cmd.trim()
+        const isAllowed = this.contract.allowed_commands.some(allowed =>
+            baseCmd === allowed || baseCmd === allowed.trim()
+        )
 
         if (isAllowed) return null
 

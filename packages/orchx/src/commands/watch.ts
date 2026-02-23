@@ -8,10 +8,14 @@ import chalk from 'chalk'
 import { readSession, updateSessionStats } from '../config/session.js'
 import { ContractEnforcer } from '../config/contractEnforcer.js'
 import { SyncClient } from './sync.js'
+import { runTests } from './tester.js'
 
 // === 디바운스 유틸 ===
 
-function createDebounce(delay: number) {
+function createDebounce(
+    delay: number,
+    onFlush: (files: string[]) => void,
+) {
     let timer: ReturnType<typeof setTimeout> | null = null
     const pending: string[] = []
 
@@ -23,9 +27,8 @@ function createDebounce(delay: number) {
                 const files = [...new Set(pending)]
                 pending.length = 0
                 timer = null
-                // 1g에서 tester.run(files)이 여기 연결됨
                 if (files.length > 0) {
-                    console.log(chalk.dim(`  📦 디바운스 완료: ${files.length}개 파일 변경 수집`))
+                    onFlush(files)
                 }
             }, delay)
         },
@@ -97,7 +100,17 @@ export function watchCommand(): Command {
             console.log('')
 
             const chokidar = await import('chokidar')
-            const debounce = createDebounce(2000)
+            const debounce = createDebounce(2000, (files) => {
+                console.log(chalk.dim(`  📦 디바운스 완료: ${files.length}개 파일 → 테스트 실행`))
+                void (async () => {
+                    const report = await runTests(files, cwd, enforcer)
+                    if (syncClient && (report.passed > 0 || report.failed > 0)) {
+                        await syncClient.sendEvent('test.completed', {
+                            ...report,
+                        }).catch(() => { /* 전송 실패 무시 */ })
+                    }
+                })()
+            })
 
             let filesChanged = session.files_changed
             let commitsDetected = session.commits_detected

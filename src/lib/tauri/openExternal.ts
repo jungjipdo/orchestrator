@@ -12,11 +12,19 @@ export function isTauri(): boolean {
 
 /**
  * 외부 브라우저에서 URL 열기
+ * Tauri macOS: 새 Chrome 창으로 열기 (기존 탭 아닌 별도 창)
  */
 export async function openInExternalBrowser(url: string): Promise<void> {
     if (isTauri()) {
-        const { openUrl } = await import('@tauri-apps/plugin-opener')
-        await openUrl(url)
+        try {
+            // macOS: 새 Chrome 창으로 열기
+            const { Command } = await import('@tauri-apps/plugin-shell')
+            await Command.create('open', ['-na', 'Google Chrome', '--args', '--new-window', url]).execute()
+        } catch {
+            // 실패 시 기본 opener 사용 (다른 OS 또는 Chrome 없을 때)
+            const { openUrl } = await import('@tauri-apps/plugin-opener')
+            await openUrl(url)
+        }
     } else {
         window.open(url, '_self')
     }

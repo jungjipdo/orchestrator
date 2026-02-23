@@ -35,5 +35,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "shell": {
+      "scope": [
+        {
+          "name": "open",
+          "cmd": "open",
+          "args": true
+        }
+      ]
+    }
   }
 }

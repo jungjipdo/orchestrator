@@ -42,11 +42,14 @@ pub async fn start_callback_server(
             if let Some(code) = extract_code(&request) {
                 // 성공 HTML 응답
                 let html = r#"<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-                    body{font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f5f5f5}
-                    .card{background:white;padding:40px;border-radius:16px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.1)}
-                    h1{font-size:24px;margin-bottom:12px}p{color:#666}
+                    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f8f9fa}
+                    .card{background:white;padding:48px 56px;border-radius:20px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.08);max-width:380px}
+                    .logo{width:48px;height:48px;background:#1a1a1a;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;color:white;font-size:20px}
+                    h1{font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a1a}
+                    p{color:#6b7280;font-size:14px;margin:0;line-height:1.5}
                 </style></head><body><div class="card">
-                    <h1>✅ 인증 완료!</h1>
+                    <div class="logo">O</div>
+                    <h1>인증 완료</h1>
                     <p>Orchestrator 앱으로 돌아가주세요.<br>이 창은 닫으셔도 됩니다.</p>
                 </div></body></html>"#;
 

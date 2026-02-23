@@ -1,8 +1,6 @@
-use std::sync::Arc;
-use tauri::{AppHandle, Emitter};
+use tauri::Emitter;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
-use tokio::sync::Mutex;
 
 /// 로컬 콜백 서버 상태
 pub struct OAuthServer {
@@ -17,10 +15,6 @@ impl OAuthServer {
         Ok((Self { port }, listener))
     }
 
-    pub fn port(&self) -> u16 {
-        self.port
-    }
-
     pub fn callback_url(&self) -> String {
         format!("http://127.0.0.1:{}/auth/callback", self.port)
     }
@@ -30,7 +24,7 @@ impl OAuthServer {
 /// Chrome이 code를 가지고 리디렉트하면 받아서 프론트엔드에 emit
 pub async fn start_callback_server(
     listener: TcpListener,
-    app_handle: AppHandle,
+    app_handle: tauri::AppHandle,
 ) {
     // 1회 연결만 수락
     if let Ok((mut stream, _)) = listener.accept().await {
@@ -77,7 +71,6 @@ pub async fn start_callback_server(
 }
 
 fn extract_code(request: &str) -> Option<String> {
-    // GET /auth/callback?code=XXXX&... HTTP/1.1
     let first_line = request.lines().next()?;
     let path = first_line.split_whitespace().nth(1)?;
     let query = path.split('?').nth(1)?;

@@ -1,9 +1,7 @@
 mod oauth;
 
-use tauri::Manager;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::image::Image;
 
 #[tauri::command]
 async fn start_oauth_server(app: tauri::AppHandle) -> Result<String, String> {
@@ -13,7 +11,6 @@ async fn start_oauth_server(app: tauri::AppHandle) -> Result<String, String> {
 
     let callback_url = server.callback_url();
 
-    // 백그라운드에서 콜백 서버 실행 (1회 수신 후 자동 종료)
     tauri::async_runtime::spawn(async move {
         oauth::start_callback_server(listener, app).await;
     });
@@ -31,11 +28,9 @@ pub fn run() {
             // ─── 시스템 트레이 ───
             let show_item = MenuItem::with_id(app, "show", "Orchestrator 열기", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "종료", true, None::<&str>)?;
-
             let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
-            let icon = Image::from_path("icons/icon.png")
-                .unwrap_or_else(|_| Image::from_bytes(include_bytes!("../icons/icon.png")).expect("icon"));
+            let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))?;
 
             TrayIconBuilder::new()
                 .icon(icon)

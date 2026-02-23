@@ -1,5 +1,6 @@
 mod oauth;
 
+use tauri::Manager;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 

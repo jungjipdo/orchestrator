@@ -35,6 +35,17 @@ export interface ReviewSnapshot {
         registered_count: number
         active_count: number                      // 최근 24h 활동
     }
+    // CLI 이벤트 요약 (Phase 2a)
+    cli_activity?: {
+        total_events: number
+        violation_count: number
+        test_results: {
+            total: number
+            passed: number
+            failed: number
+        }
+        recent_files_changed: number
+    }
     // 메타
     generated_at: string                          // ISO 8601
 }
@@ -44,6 +55,12 @@ export interface ReviewSnapshot {
 export interface ReviewResult {
     health_score: number                 // 0-100 프로젝트 건강도
     health_label: 'critical' | 'warning' | 'healthy' | 'excellent'
+    evidence?: {
+        cli_events_count: number         // 분석에 사용된 CLI 이벤트 수
+        violation_count: number          // 계약 위반 횟수
+        test_pass_rate: number | null    // 테스트 통과율 (0-100)
+        data_sources: string[]           // 예: ["plans", "work_items", "cli_events"]
+    }
     stale_alerts: {
         plan_id: string
         title: string

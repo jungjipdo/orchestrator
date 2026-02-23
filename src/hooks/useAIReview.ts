@@ -4,7 +4,7 @@
 
 import { useState, useCallback } from 'react'
 import type { ReviewResult, ReviewSnapshot, CachedReview } from '../types/review'
-import type { PlanRow } from '../types/database'
+import type { PlanRow, CliEventRow } from '../types/database'
 import type { EventLog } from '../types/index'
 import { buildSnapshot, runAIReview } from '../lib/gemini/reviewAnalysis'
 
@@ -16,6 +16,7 @@ interface UseAIReviewInput {
     workItems: { status: string; started_at: string | null; completed_at: string | null }[]
     eventLogs: EventLog[]
     agentCount: number
+    cliEvents?: CliEventRow[]  // Phase 2a
 }
 
 interface UseAIReviewReturn {

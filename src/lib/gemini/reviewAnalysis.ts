@@ -4,7 +4,7 @@
 // ============================================
 
 import type { ReviewSnapshot, ReviewResult } from '../../types/review'
-import type { PlanRow } from '../../types/database'
+import type { PlanRow, CliEventRow } from '../../types/database'
 import type { EventLog } from '../../types/index'
 
 // === Snapshot 수집 ===
@@ -14,6 +14,7 @@ interface SnapshotInput {
     workItems: { status: string; started_at: string | null; completed_at: string | null }[]
     eventLogs: EventLog[]
     agentCount: number
+    cliEvents?: CliEventRow[]  // Phase 2a: CLI 이벤트 데이터
 }
 
 interface SubTaskData {
@@ -87,6 +88,31 @@ export function buildSnapshot(input: SnapshotInput): ReviewSnapshot {
 
     const mostActiveDay = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
+    // CLI 이벤트 분석 (Phase 2a)
+    let cliActivity: ReviewSnapshot['cli_activity']
+    if (input.cliEvents && input.cliEvents.length > 0) {
+        const violations = input.cliEvents.filter(e => e.event_type === 'contract.violation')
+        const testEvents = input.cliEvents.filter(e => e.event_type === 'test.completed')
+        const fileEvents = input.cliEvents.filter(e => e.event_type === 'file.changed')
+
+        let totalTests = 0
+        let passedTests = 0
+        let failedTests = 0
+        for (const te of testEvents) {
+            const p = te.payload as Record<string, unknown>
+            totalTests += Number(p.total ?? 0)
+            passedTests += Number(p.passed ?? 0)
+            failedTests += Number(p.failed ?? 0)
+        }
+
+        cliActivity = {
+            total_events: input.cliEvents.length,
+            violation_count: violations.length,
+            test_results: { total: totalTests, passed: passedTests, failed: failedTests },
+            recent_files_changed: fileEvents.length,
+        }
+    }
+
     return {
         plans: {
             total: input.plans.length,
@@ -107,8 +133,9 @@ export function buildSnapshot(input: SnapshotInput): ReviewSnapshot {
         },
         agents: {
             registered_count: input.agentCount,
-            active_count: input.agentCount, // 간소화: 등록 = 활성
+            active_count: input.agentCount,
         },
+        cli_activity: cliActivity,
         generated_at: now.toISOString(),
     }
 }
@@ -139,7 +166,10 @@ RULES:
 4. risk_items: Max 3 items. Focus on blocked work items, stale plans, low activity
 5. next_actions: Max 3 items. Concrete, actionable, written in Korean
 6. All Korean text should be concise (max 1 sentence)
-7. Return ONLY valid JSON. No markdown wrapping.`
+7. If cli_activity data is present in the snapshot, include an "evidence" field:
+   "evidence": { "cli_events_count": <n>, "violation_count": <n>, "test_pass_rate": <0-100 or null>, "data_sources": ["plans", "work_items", "cli_events"] }
+   If no cli_activity, set data_sources to ["plans", "work_items"] and omit test/violation counts.
+8. Return ONLY valid JSON. No markdown wrapping.`
 
 export async function runAIReview(snapshot: ReviewSnapshot): Promise<ReviewResult> {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY

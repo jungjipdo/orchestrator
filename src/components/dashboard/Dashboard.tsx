@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { PlanCreateModal } from './PlanCreateModal'
 import { ProjectImportModal } from './ProjectImportModal'
+import { AIReviewPanel } from './AIReviewPanel'
 import { useProjects } from '../../hooks/useProjects'
 
 // ─── Props ───
@@ -106,7 +107,9 @@ export function Dashboard({ refreshTrigger, refresh, onNavigate }: DashboardProp
                     <p className="text-sm text-muted-foreground">Continuous development with intelligent orchestration</p>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="outline" size="sm" disabled>
+                    <Button variant="outline" size="sm" onClick={() => {
+                        document.getElementById('ai-review-panel')?.scrollIntoView({ behavior: 'smooth' })
+                    }}>
                         <Zap className="w-4 h-4 sm:mr-2" />
                         <span className="hidden sm:inline">AI Insights</span>
                     </Button>
@@ -173,6 +176,11 @@ export function Dashboard({ refreshTrigger, refresh, onNavigate }: DashboardProp
                         <p className="text-xs text-muted-foreground">events</p>
                     </CardContent>
                 </Card>
+            </div>
+
+            {/* AI Health Review */}
+            <div id="ai-review-panel">
+                <AIReviewPanel />
             </div>
 
 

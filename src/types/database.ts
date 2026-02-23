@@ -577,6 +577,8 @@ export interface Database {
                     event_id: string
                     event_type: string
                     payload: Record<string, unknown>
+                    session_id: string | null
+                    project_id: string | null
                     status: 'pending' | 'processed' | 'failed'
                     retry_count: number
                     created_at: string
@@ -587,6 +589,8 @@ export interface Database {
                     event_id: string
                     event_type: string
                     payload?: Record<string, unknown>
+                    session_id?: string | null
+                    project_id?: string | null
                     status?: 'pending' | 'processed' | 'failed'
                     retry_count?: number
                     created_at?: string
@@ -595,6 +599,8 @@ export interface Database {
                 Update: {
                     event_type?: string
                     payload?: Record<string, unknown>
+                    session_id?: string | null
+                    project_id?: string | null
                     status?: 'pending' | 'processed' | 'failed'
                     retry_count?: number
                     processed_at?: string | null

@@ -11,6 +11,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export async function getCliEvents(options?: {
     eventType?: string
+    projectId?: string
     limit?: number
     since?: string  // ISO 8601
 }) {
@@ -22,6 +23,10 @@ export async function getCliEvents(options?: {
 
     if (options?.eventType) {
         query = query.eq('event_type', options.eventType)
+    }
+
+    if (options?.projectId) {
+        query = query.eq('project_id', options.projectId)
     }
 
     if (options?.since) {

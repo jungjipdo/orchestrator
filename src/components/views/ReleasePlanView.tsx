@@ -1,7 +1,7 @@
-// ============================================
+// ===========================================
 // ReleasePlanView — Release Pipeline
 // Active Releases (Plans + Projects) + 섹션 순서 드래그
-// ============================================
+// =========================================
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { useWorkItems } from '../../hooks/useWorkItems'
@@ -10,6 +10,7 @@ import { usePlans } from '../../hooks/usePlans'
 import { useProjects } from '../../hooks/useProjects'
 import { useGitHub } from '../../hooks/useGitHub'
 import { ProjectGitHubPanel } from '../github/ProjectGitHubPanel'
+import { ProjectActivityBadge } from '../dashboard/ProjectActivityBadge'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -822,6 +823,7 @@ export function ReleasePlanView() {
                                                         <span className="text-xs text-muted-foreground">{projectDoneTasks.length + pdpDone.length}/{totalTaskCount}</span>
                                                     )}
                                                 </div>
+                                                <ProjectActivityBadge repoFullName={project.repo_full_name} />
                                             </div>
                                             <div className="shrink-0">
                                                 {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}

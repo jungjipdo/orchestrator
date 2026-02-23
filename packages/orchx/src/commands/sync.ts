@@ -1,7 +1,7 @@
-// ============================================
+// ===========================================
 // commands/sync.ts — orchx sync
 // CLI↔서버 통신 모듈 + 내구성(멱등성/재시도)
-// ============================================
+// ===========================================
 
 import { Command } from 'commander'
 import chalk from 'chalk'
@@ -37,10 +37,43 @@ interface FailedEvent {
 export class SyncClient {
     private supabase: SupabaseClient
     private projectPath: string
+    private projectId: string | null = null
+    repoFullName: string | null = null
 
     constructor(supabaseUrl: string, supabaseKey: string, projectPath: string) {
         this.supabase = createClient(supabaseUrl, supabaseKey)
         this.projectPath = projectPath
+    }
+
+    /** .git/config에서 remote URL → repo_full_name 추출 (DB 쿼리 불필요) */
+    async resolveProjectId(): Promise<string | null> {
+        try {
+            const { readFileSync, existsSync } = await import('node:fs')
+            const { join } = await import('node:path')
+            const gitConfigPath = join(this.projectPath, '.git', 'config')
+            if (!existsSync(gitConfigPath)) return null
+
+            const content = readFileSync(gitConfigPath, 'utf-8')
+            // remote origin URL 파싱 (SSH 또는 HTTPS)
+            const urlMatch = content.match(/\[remote "origin"\][^[]*url\s*=\s*(.+)/m)
+            if (!urlMatch) return null
+
+            const rawUrl = urlMatch[1].trim()
+            // SSH: git@github.com:owner/repo.git → owner/repo
+            // HTTPS: https://github.com/owner/repo.git → owner/repo
+            let repoFullName: string | null = null
+            const sshMatch = rawUrl.match(/git@[^:]+:(.+?)(?:\.git)?$/)
+            const httpsMatch = rawUrl.match(/https?:\/\/[^/]+\/(.+?)(?:\.git)?$/)
+            if (sshMatch) repoFullName = sshMatch[1]
+            else if (httpsMatch) repoFullName = httpsMatch[1]
+            if (!repoFullName) return null
+
+            this.repoFullName = repoFullName
+            console.log(chalk.dim(`  🔗 저장소: ${repoFullName}`))
+            return repoFullName
+        } catch {
+            return null
+        }
     }
 
     /** 이벤트 전송 (멱등성: event_id UNIQUE 제약) */
@@ -48,11 +81,15 @@ export class SyncClient {
         const session = readSession(this.projectPath)
         const eventId = randomUUID()
 
-        const event: Omit<CliEvent, 'status' | 'retry_count'> = {
+        const event = {
             event_id: eventId,
             event_type: type,
-            payload,
+            payload: {
+                ...payload,
+                ...(this.repoFullName ? { repo_full_name: this.repoFullName } : {}),
+            },
             session_id: session?.session_id ?? null,
+            project_id: this.projectId,
         }
 
         try {
@@ -60,7 +97,7 @@ export class SyncClient {
                 .from('cli_events')
                 .insert({
                     ...event,
-                    status: 'pending',
+                    status: 'pending' as const,
                     retry_count: 0,
                 })
 

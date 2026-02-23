@@ -111,17 +111,49 @@ export function useGitHub(): UseGitHubReturn {
         return () => subscription.unsubscribe()
     }, [syncGitHub, refresh])
 
+    // ─── GitHub OAuth를 외부 브라우저/내부 리디렉트 분기 ───
+    const triggerOAuth = useCallback(async (scopes?: string) => {
+        const { isTauri, openInExternalBrowser, startOAuthServer, onOAuthCallback } = await import('../lib/tauri/openExternal')
+        const origin = window.location.origin
+
+        if (isTauri()) {
+            // Tauri: PKCE + 로컬 콜백 서버
+            const callbackUrl = await startOAuthServer()
+
+            const { data, error } = await supabase.auth.signInWithOAuth({
+                provider: 'github',
+                options: {
+                    redirectTo: callbackUrl,
+                    scopes: scopes ?? 'repo,read:user',
+                    skipBrowserRedirect: true,
+                },
+            })
+
+            if (data?.url && !error) {
+                onOAuthCallback(async (code) => {
+                    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+                    if (exchangeError) {
+                        console.error('[GitHub] 세션 교환 실패:', exchangeError)
+                    }
+                })
+                await openInExternalBrowser(data.url)
+            }
+        } else {
+            // PWA: 기존 리디렉트 방식
+            void supabase.auth.signInWithOAuth({
+                provider: 'github',
+                options: {
+                    redirectTo: origin,
+                    scopes: scopes ?? 'repo,read:user',
+                },
+            })
+        }
+    }, [])
+
     // ─── GitHub 연결 (Supabase Auth OAuth) ───
     const connect = useCallback(() => {
-        const origin = window.location.origin
-        void supabase.auth.signInWithOAuth({
-            provider: 'github',
-            options: {
-                redirectTo: origin,
-                scopes: 'repo,read:user',
-            },
-        })
-    }, [])
+        void triggerOAuth('repo,read:user')
+    }, [triggerOAuth])
 
     // ─── 연결 해제 ───
     const disconnect = useCallback(async () => {
@@ -138,26 +170,12 @@ export function useGitHub(): UseGitHubReturn {
                 setConnection(null)
                 setRepos([])
                 setTokenExpired(false)
-                const origin = window.location.origin
-                void supabase.auth.signInWithOAuth({
-                    provider: 'github',
-                    options: {
-                        redirectTo: origin,
-                        scopes: 'repo,read:user',
-                    },
-                })
+                void triggerOAuth('repo,read:user')
             })
         } else {
-            const origin = window.location.origin
-            void supabase.auth.signInWithOAuth({
-                provider: 'github',
-                options: {
-                    redirectTo: origin,
-                    scopes: 'repo,read:user',
-                },
-            })
+            void triggerOAuth('repo,read:user')
         }
-    }, [connection])
+    }, [connection, triggerOAuth])
 
     // ─── github:token-expired 이벤트 구독 ───
     useEffect(() => {

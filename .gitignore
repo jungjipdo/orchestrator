@@ -37,4 +37,8 @@ openclaw
 .vercel
 .env*.local
 
-.orchestrator/session.json
+.orchestrator/
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/schemas/

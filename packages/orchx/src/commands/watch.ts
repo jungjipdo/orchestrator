@@ -1,7 +1,7 @@
-// ============================================
+// ==========================================
 // commands/watch.ts — orchx watch
 // chokidar 기반 파일 변경 감지 + 계약 집행 + 서버 전송
-// ============================================
+// ==========================================
 
 import { Command } from 'commander'
 import chalk from 'chalk'
@@ -86,6 +86,11 @@ export function watchCommand(): Command {
             // 서버 전송 클라이언트 (없으면 로컬 모드)
             const syncClient = await tryCreateSyncClient(cwd)
 
+            // 프로젝트 ID 자동 매칭
+            if (syncClient) {
+                await syncClient.resolveProjectId()
+            }
+
             console.log(chalk.green('👁'), `Watching ${cwd}`)
             console.log(chalk.dim(`  Agent: ${session.agent_type} | Task: ${session.task_name}`))
             if (enforcer.hasContract()) {
@@ -119,8 +124,12 @@ export function watchCommand(): Command {
             // === 파일 변경 핸들러 ===
 
             async function handleFileChange(path: string, eventType: 'change' | 'add' | 'unlink') {
-                filesChanged++
                 const relative = path.replace(cwd + '/', '')
+
+                // Safety: ignored에서 빠져나온 경우 이중 체크
+                if (/^\.(orchestrator|git)\/|node_modules|dist\/|build\/|\.next\//.test(relative)) return
+
+                filesChanged++
 
                 // 이모지 선택
                 const icon = eventType === 'add' ? chalk.green('  +')
@@ -160,15 +169,13 @@ export function watchCommand(): Command {
                 }
             }
 
+            const IGNORED_DIRS = ['node_modules', '.git', '.orchestrator', 'dist', 'build', '.next']
+
             const watcher = chokidar.watch(cwd, {
-                ignored: [
-                    '**/node_modules/**',
-                    '**/.git/**',
-                    '**/.orchestrator/**',
-                    '**/dist/**',
-                    '**/build/**',
-                    '**/.next/**',
-                ],
+                ignored: (filePath: string) => {
+                    const rel = filePath.replace(cwd, '').replace(/^\//, '')
+                    return IGNORED_DIRS.some(d => rel === d || rel.startsWith(d + '/'))
+                },
                 ignoreInitial: true,
                 persistent: true,
             })

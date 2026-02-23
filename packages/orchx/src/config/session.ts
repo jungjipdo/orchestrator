@@ -18,6 +18,13 @@ export interface OrchestratorSession {
     // 파일 변경 통계 (watch가 업데이트)
     files_changed: number
     commits_detected: number
+    // 실행 계약서 (서버에서 수신)
+    execution_contract?: {
+        allowed_paths: string[]
+        allowed_commands: string[]
+        budget_tokens?: number
+        budget_minutes?: number
+    }
 }
 
 function getSessionPath(projectPath: string): string {

@@ -9,6 +9,7 @@ import { sessionCommand } from './commands/session.js'
 import { watchCommand } from './commands/watch.js'
 import { commitCommand } from './commands/commit.js'
 import { rulesCommand } from './commands/rules.js'
+import { syncCommand } from './commands/sync.js'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -28,5 +29,6 @@ program.addCommand(sessionCommand())
 program.addCommand(watchCommand())
 program.addCommand(commitCommand())
 program.addCommand(rulesCommand())
+program.addCommand(syncCommand())
 
 program.parse()

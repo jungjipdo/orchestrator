@@ -42,67 +42,70 @@ fi
 `
 
 export function initCommand(): Command {
-    const cmd = new Command('init')
-        .description('Initialize orchx in current project')
-        .action(async () => {
-            const cwd = process.cwd()
+  const cmd = new Command('init')
+    .description('Initialize orchx in current project')
+    .action(async () => {
+      const cwd = process.cwd()
 
-            // 1. Git 레포 확인
-            const gitDir = join(cwd, '.git')
-            if (!existsSync(gitDir)) {
-                console.error(chalk.red('✗ Git repository not found. Run "git init" first.'))
-                process.exit(1)
-            }
+      // 1. Git 레포 확인
+      const gitDir = join(cwd, '.git')
+      if (!existsSync(gitDir)) {
+        console.error(chalk.red('✗ Git repository not found. Run "git init" first.'))
+        process.exit(1)
+      }
 
-            // 2. .orchestrator/ 디렉토리 생성
-            ensureOrchestratorDir(cwd)
-            console.log(chalk.green('✓'), '.orchestrator/ directory created')
+      // 2. .orchestrator/ 디렉토리 생성
+      ensureOrchestratorDir(cwd)
+      console.log(chalk.green('✓'), '.orchestrator/ directory created')
 
-            // 3. Git Hook 설치
-            const hooksDir = join(gitDir, 'hooks')
-            if (!existsSync(hooksDir)) {
-                mkdirSync(hooksDir, { recursive: true })
-            }
+      // 3. Git Hook 설치
+      const hooksDir = join(gitDir, 'hooks')
+      if (!existsSync(hooksDir)) {
+        mkdirSync(hooksDir, { recursive: true })
+      }
 
-            const hookPath = join(hooksDir, 'prepare-commit-msg')
-            const existingHook = existsSync(hookPath)
+      const hookPath = join(hooksDir, 'prepare-commit-msg')
+      const existingHook = existsSync(hookPath)
 
-            if (existingHook) {
-                const content = readFileSync(hookPath, 'utf-8')
-                if (content.includes('orchx')) {
-                    console.log(chalk.yellow('→'), 'Git hook already installed')
-                } else {
-                    // 기존 hook에 orchx 부분 추가
-                    const appended = content + '\n\n' + HOOK_TEMPLATE.split('\n').slice(1).join('\n')
-                    writeFileSync(hookPath, appended, 'utf-8')
-                    chmodSync(hookPath, 0o755)
-                    console.log(chalk.green('✓'), 'Git hook updated (appended to existing)')
-                }
-            } else {
-                writeFileSync(hookPath, HOOK_TEMPLATE, 'utf-8')
-                chmodSync(hookPath, 0o755)
-                console.log(chalk.green('✓'), 'Git hook installed')
-            }
+      if (existingHook) {
+        const content = readFileSync(hookPath, 'utf-8')
+        if (content.includes('orchx')) {
+          console.log(chalk.yellow('→'), 'Git hook already installed')
+        } else {
+          // 기존 hook에 orchx 부분 추가
+          const appended = content + '\n\n' + HOOK_TEMPLATE.split('\n').slice(1).join('\n')
+          writeFileSync(hookPath, appended, 'utf-8')
+          chmodSync(hookPath, 0o755)
+          console.log(chalk.green('✓'), 'Git hook updated (appended to existing)')
+        }
+      } else {
+        writeFileSync(hookPath, HOOK_TEMPLATE, 'utf-8')
+        chmodSync(hookPath, 0o755)
+        console.log(chalk.green('✓'), 'Git hook installed')
+      }
 
-            // 4. .gitignore에 session.json 추가
-            const gitignorePath = join(cwd, '.gitignore')
-            const ignoreEntry = '.orchestrator/session.json'
+      // 4. .gitignore에 .orchestrator/ 추가 (세션, 실패 이벤트, CURRENT_TASK.md 등)
+      const gitignorePath = join(cwd, '.gitignore')
+      const ignoreEntries = ['.orchestrator/']
 
-            if (existsSync(gitignorePath)) {
-                const content = readFileSync(gitignorePath, 'utf-8')
-                if (!content.includes(ignoreEntry)) {
-                    writeFileSync(gitignorePath, content + '\n' + ignoreEntry + '\n', 'utf-8')
-                    console.log(chalk.green('✓'), '.gitignore updated')
-                }
-            } else {
-                writeFileSync(gitignorePath, ignoreEntry + '\n', 'utf-8')
-                console.log(chalk.green('✓'), '.gitignore created')
-            }
+      if (existsSync(gitignorePath)) {
+        let content = readFileSync(gitignorePath, 'utf-8')
+        const missing = ignoreEntries.filter(e => !content.includes(e))
+        if (missing.length > 0) {
+          // 기존 session.json 항목이 있으면 .orchestrator/로 대체
+          content = content.replace('.orchestrator/session.json\n', '')
+          writeFileSync(gitignorePath, content.trimEnd() + '\n' + missing.join('\n') + '\n', 'utf-8')
+          console.log(chalk.green('✓'), '.gitignore updated (.orchestrator/)')
+        }
+      } else {
+        writeFileSync(gitignorePath, ignoreEntries.join('\n') + '\n', 'utf-8')
+        console.log(chalk.green('✓'), '.gitignore created')
+      }
 
-            console.log('')
-            console.log(chalk.bold('🚀 orchx initialized!'))
-            console.log(chalk.dim('   Next: orchx session start --agent <type> --task "<description>"'))
-        })
+      console.log('')
+      console.log(chalk.bold('🚀 orchx initialized!'))
+      console.log(chalk.dim('   Next: orchx session start --agent <type> --task "<description>"'))
+    })
 
-    return cmd
+  return cmd
 }

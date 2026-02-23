@@ -10,6 +10,8 @@ import { watchCommand } from './commands/watch.js'
 import { commitCommand } from './commands/commit.js'
 import { rulesCommand } from './commands/rules.js'
 import { syncCommand } from './commands/sync.js'
+import { injectCommand } from './commands/inject.js'
+import { testerCommand } from './commands/tester.js'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -30,5 +32,7 @@ program.addCommand(watchCommand())
 program.addCommand(commitCommand())
 program.addCommand(rulesCommand())
 program.addCommand(syncCommand())
+program.addCommand(injectCommand())
+program.addCommand(testerCommand())
 
 program.parse()

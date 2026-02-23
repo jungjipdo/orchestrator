@@ -19,6 +19,7 @@ import { useAuth } from '../../hooks/useAuth'
 import type { EditorType, AIModel } from '../../types/index'
 import { TASK_TYPES } from '../../features/orchestration/taskTypes'
 import type { TaskType } from '../../features/orchestration/taskTypes'
+import { CliMonitorPanel } from './CliMonitorPanel'
 import {
     Plus,
     Sparkles,
@@ -733,6 +734,9 @@ export function OrchestrationView({ onNavigateToPlan }: { onNavigateToPlan?: () 
                     )}
                 </CardContent>
             </Card>
+
+            {/* CLI Monitor */}
+            <CliMonitorPanel />
         </div>
     )
 }

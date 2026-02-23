@@ -571,6 +571,36 @@ export interface Database {
                     },
                 ]
             }
+            cli_events: {
+                Row: {
+                    id: string
+                    event_id: string
+                    event_type: string
+                    payload: Record<string, unknown>
+                    status: 'pending' | 'processed' | 'failed'
+                    retry_count: number
+                    created_at: string
+                    processed_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    event_id: string
+                    event_type: string
+                    payload?: Record<string, unknown>
+                    status?: 'pending' | 'processed' | 'failed'
+                    retry_count?: number
+                    created_at?: string
+                    processed_at?: string | null
+                }
+                Update: {
+                    event_type?: string
+                    payload?: Record<string, unknown>
+                    status?: 'pending' | 'processed' | 'failed'
+                    retry_count?: number
+                    processed_at?: string | null
+                }
+                Relationships: []
+            }
         }
         Views: Record<string, never>
         Functions: Record<string, never>
@@ -631,3 +661,7 @@ export type ProjectUpdate = Database['public']['Tables']['projects']['Update']
 export type GoalRow = Database['public']['Tables']['goals']['Row']
 export type GoalInsert = Database['public']['Tables']['goals']['Insert']
 export type GoalUpdate = Database['public']['Tables']['goals']['Update']
+
+export type CliEventRow = Database['public']['Tables']['cli_events']['Row']
+export type CliEventInsert = Database['public']['Tables']['cli_events']['Insert']
+export type CliEventUpdate = Database['public']['Tables']['cli_events']['Update']

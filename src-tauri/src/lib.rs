@@ -4,6 +4,7 @@ mod contract;
 mod watcher;
 mod sync_client;
 mod offline_tracker;
+mod local_db;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -12,7 +13,7 @@ use tauri::Manager;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 
-/// 앱 전역 상태: 멀티 프로젝트 감시
+/// 앱 전역 상태: 멀티 프로젝트 감시 + 로컬 DB
 struct AppState {
     /// repo_full_name → WatcherState 매핑
     watchers: Mutex<HashMap<String, watcher::WatcherState>>,
@@ -20,6 +21,8 @@ struct AppState {
     project_paths: Mutex<HashMap<String, PathBuf>>,
     /// 전체 감시 활성화 여부
     watching_enabled: Mutex<bool>,
+    /// 로컬 SQLite DB
+    db: local_db::LocalDb,
 }
 
 #[tauri::command]
@@ -63,11 +66,12 @@ async fn add_watch_project(
         }
     }
 
-    // 경로 저장
+    // 경로 저장 (메모리 + DB)
     {
         let mut paths = state.project_paths.lock().map_err(|e| e.to_string())?;
         paths.insert(repo_full_name.clone(), project_path.clone());
     }
+    state.db.upsert_watcher_path(&repo_full_name, &path).map_err(|e| e.to_string())?;
 
     // 감시 활성화 상태면 watcher 시작
     if enabled {
@@ -95,11 +99,12 @@ async fn remove_watch_project(
         }
     }
 
-    // 경로 제거
+    // 경로 제거 (메모리 + DB)
     {
         let mut paths = state.project_paths.lock().map_err(|e| e.to_string())?;
         paths.remove(&repo_full_name);
     }
+    state.db.delete_watcher_path(&repo_full_name).map_err(|e| e.to_string())?;
 
     Ok(format!("⏹ {} 감시 제거", repo_full_name))
 }
@@ -280,13 +285,25 @@ async fn resolve_local_paths(repo_urls: Vec<String>) -> Result<serde_json::Value
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let db = local_db::LocalDb::open().expect("로컬 DB 초기화 실패");
+
+    // 저장된 watcher 경로 복원
+    let mut initial_paths = HashMap::new();
+    if let Ok(paths) = db.get_all_watcher_paths() {
+        for (name, path) in paths {
+            initial_paths.insert(name, PathBuf::from(path));
+        }
+        log::info!("📂 저장된 watcher 경로 {}개 복원", initial_paths.len());
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .manage(AppState {
             watchers: Mutex::new(HashMap::new()),
-            project_paths: Mutex::new(HashMap::new()),
-            watching_enabled: Mutex::new(true), // 기본값: 감시 ON
+            project_paths: Mutex::new(initial_paths),
+            watching_enabled: Mutex::new(true),
+            db,
         })
         .invoke_handler(tauri::generate_handler![
             start_oauth_server,

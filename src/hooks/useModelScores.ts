@@ -6,6 +6,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { getModelScores, upsertModelScore, type ModelScore } from '../lib/supabase/modelScores'
 import type { AIModel } from '../types/index'
 
+/** Tauri 환경인지 체크 */
+function isTauri(): boolean {
+    return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+}
+
 // 모든 모델의 기본 점수 (사용자 제공 지표 업데이트)
 const DEFAULT_SCORES: Record<AIModel, { coding: number; analysis: number; documentation: number; speed: number }> = {
     // Anthropic
@@ -50,8 +55,14 @@ export function useModelScores(): UseModelScoresReturn {
 
     const fetchScores = useCallback(async () => {
         try {
-            const data = await getModelScores()
-            setDbScores(data)
+            if (isTauri()) {
+                const { invoke } = await import('@tauri-apps/api/core')
+                const data = await invoke<ModelScore[]>('db_get_model_scores')
+                setDbScores(Array.isArray(data) ? data : [])
+            } else {
+                const data = await getModelScores()
+                setDbScores(data)
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load scores')
         } finally {
@@ -79,7 +90,18 @@ export function useModelScores(): UseModelScoresReturn {
         scoreValues: { coding: number; analysis: number; documentation: number; speed: number },
     ) => {
         try {
-            await upsertModelScore(modelKey, scoreValues)
+            if (isTauri()) {
+                const { invoke } = await import('@tauri-apps/api/core')
+                await invoke('db_upsert_model_score', {
+                    modelKey,
+                    coding: scoreValues.coding,
+                    analysis: scoreValues.analysis,
+                    documentation: scoreValues.documentation,
+                    speed: scoreValues.speed,
+                })
+            } else {
+                await upsertModelScore(modelKey, scoreValues)
+            }
             await fetchScores()
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to update score')

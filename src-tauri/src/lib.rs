@@ -283,6 +283,66 @@ async fn resolve_local_paths(repo_urls: Vec<String>) -> Result<serde_json::Value
     serde_json::to_value(&result).map_err(|e| e.to_string())
 }
 
+// ─── 로컬 DB Tauri 커맨드 ───
+
+#[tauri::command]
+async fn db_get_model_scores(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let state = app.state::<AppState>();
+    let scores = state.db.get_all_model_scores().map_err(|e| e.to_string())?;
+    Ok(serde_json::json!(scores))
+}
+
+#[tauri::command]
+async fn db_upsert_model_score(
+    app: tauri::AppHandle,
+    model_key: String,
+    coding: f64,
+    analysis: f64,
+    documentation: f64,
+    speed: f64,
+) -> Result<String, String> {
+    let state = app.state::<AppState>();
+    state.db.upsert_model_score(&model_key, coding, analysis, documentation, speed)
+        .map_err(|e| e.to_string())?;
+    Ok("ok".to_string())
+}
+
+#[tauri::command]
+async fn db_get_editor_models(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let state = app.state::<AppState>();
+    let models = state.db.get_all_editor_models().map_err(|e| e.to_string())?;
+    Ok(serde_json::json!(models))
+}
+
+#[tauri::command]
+async fn db_upsert_editor_models(
+    app: tauri::AppHandle,
+    editor_type: String,
+    supported_models: Vec<String>,
+) -> Result<String, String> {
+    let state = app.state::<AppState>();
+    state.db.upsert_editor_models(&editor_type, &supported_models)
+        .map_err(|e| e.to_string())?;
+    Ok("ok".to_string())
+}
+
+#[tauri::command]
+async fn db_get_projects(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let state = app.state::<AppState>();
+    let projects = state.db.get_all_projects().map_err(|e| e.to_string())?;
+    Ok(serde_json::json!(projects))
+}
+
+#[tauri::command]
+async fn db_upsert_project(
+    app: tauri::AppHandle,
+    project: serde_json::Value,
+) -> Result<String, String> {
+    let state = app.state::<AppState>();
+    state.db.upsert_project(&project).map_err(|e| e.to_string())?;
+    Ok("ok".to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let db = local_db::LocalDb::open().expect("로컬 DB 초기화 실패");
@@ -313,6 +373,12 @@ pub fn run() {
             get_watch_status,
             get_offline_changes,
             resolve_local_paths,
+            db_get_model_scores,
+            db_upsert_model_score,
+            db_get_editor_models,
+            db_upsert_editor_models,
+            db_get_projects,
+            db_upsert_project,
         ])
         .setup(|app| {
             // ─── 시스템 트레이 ───

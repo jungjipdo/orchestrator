@@ -12,6 +12,11 @@ import {
     type CreateProjectInput,
 } from '../lib/supabase/projects'
 
+/** Tauri 환경인지 체크 */
+function isTauri(): boolean {
+    return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+}
+
 interface UseProjectsReturn {
     projects: Project[]
     loading: boolean
@@ -30,8 +35,14 @@ export function useProjects(): UseProjectsReturn {
     const refresh = useCallback(async () => {
         try {
             setLoading(true)
-            const data = await fetchProjects()
-            setProjects(data)
+            if (isTauri()) {
+                const { invoke } = await import('@tauri-apps/api/core')
+                const data = await invoke<Project[]>('db_get_projects')
+                setProjects(Array.isArray(data) ? data : [])
+            } else {
+                const data = await fetchProjects()
+                setProjects(data)
+            }
             setError(null)
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Failed to fetch projects')
@@ -45,19 +56,56 @@ export function useProjects(): UseProjectsReturn {
     }, [refresh])
 
     const importProject = useCallback(async (input: CreateProjectInput) => {
-        const project = await createProject(input)
-        setProjects((prev) => [project, ...prev])
-        return project
+        if (isTauri()) {
+            const { invoke } = await import('@tauri-apps/api/core')
+            const project: Project = {
+                id: crypto.randomUUID(),
+                repo_id: input.repo_id,
+                repo_name: input.repo_name,
+                repo_full_name: input.repo_full_name,
+                repo_url: input.repo_url,
+                description: input.description ?? null,
+                default_branch: input.default_branch ?? 'main',
+                language: input.language ?? null,
+                is_private: input.is_private ?? false,
+                status: 'active',
+                metadata: {},
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            }
+            await invoke('db_upsert_project', { project })
+            setProjects((prev) => [project, ...prev])
+            return project
+        } else {
+            const project = await createProject(input)
+            setProjects((prev) => [project, ...prev])
+            return project
+        }
     }, [])
 
     const updateProjectStatus = useCallback(async (id: string, updates: Partial<Omit<Project, 'id' | 'created_at' | 'updated_at'>>) => {
-        const updated = await updateProject(id, updates)
-        setProjects((prev) => prev.map((p) => p.id === id ? updated : p))
-        return updated
-    }, [])
+        if (isTauri()) {
+            const existing = projects.find((p) => p.id === id)
+            if (!existing) throw new Error('Project not found')
+            const updated = { ...existing, ...updates, updated_at: new Date().toISOString() }
+            const { invoke } = await import('@tauri-apps/api/core')
+            await invoke('db_upsert_project', { project: updated })
+            setProjects((prev) => prev.map((p) => p.id === id ? updated : p))
+            return updated
+        } else {
+            const updated = await updateProject(id, updates)
+            setProjects((prev) => prev.map((p) => p.id === id ? updated : p))
+            return updated
+        }
+    }, [projects])
 
     const removeProject = useCallback(async (id: string) => {
-        await deleteProject(id)
+        if (isTauri()) {
+            const { invoke } = await import('@tauri-apps/api/core')
+            await invoke('db_upsert_project', { project: { id, status: 'archived' } })
+        } else {
+            await deleteProject(id)
+        }
         setProjects((prev) => prev.filter((p) => p.id !== id))
     }, [])
 

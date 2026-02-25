@@ -233,6 +233,166 @@ impl LocalDb {
     }
 }
 
+// ─── lock 헬퍼 ───
+
+impl LocalDb {
+    fn lock_conn(&self) -> Result<std::sync::MutexGuard<'_, Connection>, rusqlite::Error> {
+        self.conn.lock().map_err(|e| {
+            rusqlite::Error::ToSqlConversionFailure(Box::new(
+                std::io::Error::new(std::io::ErrorKind::Other, e.to_string()),
+            ))
+        })
+    }
+}
+
+// ─── CRUD: model_scores ───
+
+impl LocalDb {
+    pub fn get_all_model_scores(&self) -> SqliteResult<Vec<serde_json::Value>> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, model_key, coding, analysis, documentation, speed, updated_at FROM model_scores"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, String>(0)?,
+                "model_key": row.get::<_, String>(1)?,
+                "coding": row.get::<_, f64>(2)?,
+                "analysis": row.get::<_, f64>(3)?,
+                "documentation": row.get::<_, f64>(4)?,
+                "speed": row.get::<_, f64>(5)?,
+                "updated_at": row.get::<_, String>(6)?,
+            }))
+        })?;
+        rows.collect()
+    }
+
+    pub fn upsert_model_score(
+        &self, model_key: &str, coding: f64, analysis: f64, documentation: f64, speed: f64,
+    ) -> SqliteResult<()> {
+        let conn = self.lock_conn()?;
+        let id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO model_scores (id, model_key, coding, analysis, documentation, speed)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(model_key) DO UPDATE SET
+               coding = ?3, analysis = ?4, documentation = ?5, speed = ?6,
+               updated_at = datetime('now')",
+            params![id, model_key, coding, analysis, documentation, speed],
+        )?;
+        Ok(())
+    }
+}
+
+// ─── CRUD: editor_models ───
+
+impl LocalDb {
+    pub fn get_all_editor_models(&self) -> SqliteResult<Vec<serde_json::Value>> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, editor_type, supported_models, updated_at FROM editor_models"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let models_str = row.get::<_, String>(2)?;
+            let models: serde_json::Value = serde_json::from_str(&models_str)
+                .unwrap_or(serde_json::json!([]));
+            Ok(serde_json::json!({
+                "id": row.get::<_, String>(0)?,
+                "editor_type": row.get::<_, String>(1)?,
+                "supported_models": models,
+                "updated_at": row.get::<_, String>(3)?,
+            }))
+        })?;
+        rows.collect()
+    }
+
+    pub fn upsert_editor_models(
+        &self, editor_type: &str, supported_models: &[String],
+    ) -> SqliteResult<()> {
+        let conn = self.lock_conn()?;
+        let id = uuid::Uuid::new_v4().to_string();
+        let models_json = serde_json::to_string(supported_models).unwrap_or_else(|_| "[]".to_string());
+        conn.execute(
+            "INSERT INTO editor_models (id, editor_type, supported_models)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(editor_type) DO UPDATE SET
+               supported_models = ?3, updated_at = datetime('now')",
+            params![id, editor_type, models_json],
+        )?;
+        Ok(())
+    }
+}
+
+// ─── CRUD: projects ───
+
+impl LocalDb {
+    pub fn get_all_projects(&self) -> SqliteResult<Vec<serde_json::Value>> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, repo_id, repo_name, repo_full_name, repo_url, description,
+                    default_branch, language, is_private, status, metadata, created_at, updated_at
+             FROM projects ORDER BY created_at DESC"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let metadata_str = row.get::<_, String>(10)?;
+            let metadata: serde_json::Value = serde_json::from_str(&metadata_str)
+                .unwrap_or(serde_json::json!({}));
+            Ok(serde_json::json!({
+                "id": row.get::<_, String>(0)?,
+                "repo_id": row.get::<_, i64>(1)?,
+                "repo_name": row.get::<_, String>(2)?,
+                "repo_full_name": row.get::<_, String>(3)?,
+                "repo_url": row.get::<_, String>(4)?,
+                "description": row.get::<_, Option<String>>(5)?,
+                "default_branch": row.get::<_, String>(6)?,
+                "language": row.get::<_, Option<String>>(7)?,
+                "is_private": row.get::<_, bool>(8)?,
+                "status": row.get::<_, String>(9)?,
+                "metadata": metadata,
+                "created_at": row.get::<_, String>(11)?,
+                "updated_at": row.get::<_, String>(12)?,
+            }))
+        })?;
+        rows.collect()
+    }
+
+    pub fn upsert_project(&self, project: &serde_json::Value) -> SqliteResult<()> {
+        let conn = self.lock_conn()?;
+        let id = project["id"].as_str().unwrap_or(&uuid::Uuid::new_v4().to_string()).to_string();
+        let metadata = serde_json::to_string(&project["metadata"]).unwrap_or_else(|_| "{}".to_string());
+
+        conn.execute(
+            "INSERT INTO projects (id, repo_id, repo_name, repo_full_name, repo_url, description,
+                                   default_branch, language, is_private, status, metadata)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ON CONFLICT(repo_full_name) DO UPDATE SET
+               description = ?6, default_branch = ?7, language = ?8,
+               is_private = ?9, status = ?10, metadata = ?11,
+               updated_at = datetime('now')",
+            params![
+                id,
+                project["repo_id"].as_i64().unwrap_or(0),
+                project["repo_name"].as_str().unwrap_or(""),
+                project["repo_full_name"].as_str().unwrap_or(""),
+                project["repo_url"].as_str().unwrap_or(""),
+                project["description"].as_str(),
+                project["default_branch"].as_str().unwrap_or("main"),
+                project["language"].as_str(),
+                project["is_private"].as_bool().unwrap_or(false),
+                project["status"].as_str().unwrap_or("active"),
+                metadata,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_project(&self, id: &str) -> SqliteResult<()> {
+        let conn = self.lock_conn()?;
+        conn.execute("DELETE FROM projects WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

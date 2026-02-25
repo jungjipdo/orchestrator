@@ -40,6 +40,10 @@ interface UseWatcherReturn {
     removeProject: (repoFullName: string) => Promise<void>
     /** 전체 감시 토글 */
     toggleAll: () => Promise<void>
+    /** 자동 스캔 + 감시 시작 */
+    autoScanAndWatch: (repoUrls: string[]) => Promise<number>
+    /** 스캔 중 */
+    scanning: boolean
     /** 최근 파일 변경 이벤트 */
     recentChanges: FileChangeEvent[]
     /** 에러 메시지 */
@@ -51,6 +55,7 @@ export function useWatcher(): UseWatcherReturn {
     const [watchStatus, setWatchStatus] = useState<WatchStatus | null>(null)
     const [recentChanges, setRecentChanges] = useState<FileChangeEvent[]>([])
     const [error, setError] = useState<string | null>(null)
+    const [scanning, setScanning] = useState(false)
 
     // 상태 새로고침
     const refreshStatus = useCallback(async () => {
@@ -120,12 +125,35 @@ export function useWatcher(): UseWatcherReturn {
         }
     }, [tauriApp])
 
+    const autoScanAndWatch = useCallback(async (repoUrls: string[]): Promise<number> => {
+        if (!tauriApp || repoUrls.length === 0) return 0
+        setScanning(true)
+        try {
+            const pathMap = await invoke<Record<string, string>>('resolve_local_paths', { repoUrls })
+            let count = 0
+            for (const [repoFullName, localPath] of Object.entries(pathMap)) {
+                await invoke('add_watch_project', { repoFullName, path: localPath })
+                count++
+            }
+            await refreshStatus()
+            setError(null)
+            return count
+        } catch (e) {
+            setError(e instanceof Error ? e.message : String(e))
+            return 0
+        } finally {
+            setScanning(false)
+        }
+    }, [tauriApp, refreshStatus])
+
     return {
         isTauriApp: tauriApp,
         watchStatus,
         addProject,
         removeProject,
         toggleAll,
+        autoScanAndWatch,
+        scanning,
         recentChanges,
         error,
     }

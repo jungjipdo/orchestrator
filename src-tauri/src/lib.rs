@@ -186,6 +186,98 @@ async fn get_offline_changes(app: tauri::AppHandle) -> Result<serde_json::Value,
     Ok(serde_json::json!(all_changes))
 }
 
+/// 로컬 디스크에서 git 레포 위치 자동 탐색
+/// repo_urls: ["https://github.com/owner/repo.git", ...]
+/// → { "owner/repo": "/Users/.../path" }
+#[tauri::command]
+async fn resolve_local_paths(repo_urls: Vec<String>) -> Result<serde_json::Value, String> {
+    use std::process::Command;
+
+    // 홈 디렉토리 탐색 기반
+    let home = dirs::home_dir().ok_or("홈 디렉토리를 찾을 수 없음")?;
+
+    // 빠른 탐색: find로 .git 디렉토리 검색 (depth 5)
+    let find_output = Command::new("find")
+        .args([
+            home.to_str().unwrap_or("~"),
+            "-maxdepth", "5",
+            "-name", ".git",
+            "-type", "d",
+            "-not", "-path", "*/node_modules/*",
+            "-not", "-path", "*/.Trash/*",
+            "-not", "-path", "*/Library/*",
+        ])
+        .output()
+        .map_err(|e| format!("find 실행 실패: {}", e))?;
+
+    let git_dirs = String::from_utf8_lossy(&find_output.stdout);
+    let mut result: HashMap<String, String> = HashMap::new();
+
+    // URL 정규화 (비교용)
+    let normalized_urls: Vec<(String, String)> = repo_urls
+        .iter()
+        .map(|url| {
+            let normalized = url
+                .trim_end_matches(".git")
+                .replace("git@github.com:", "https://github.com/")
+                .to_lowercase();
+            (url.clone(), normalized)
+        })
+        .collect();
+
+    for git_dir in git_dirs.lines() {
+        let git_dir = git_dir.trim();
+        if git_dir.is_empty() {
+            continue;
+        }
+
+        let project_dir = match std::path::Path::new(git_dir).parent() {
+            Some(p) => p,
+            None => continue,
+        };
+
+        // git remote get-url origin 실행
+        let remote = Command::new("git")
+            .args(["remote", "get-url", "origin"])
+            .current_dir(project_dir)
+            .output();
+
+        let remote_url = match remote {
+            Ok(o) if o.status.success() => {
+                String::from_utf8_lossy(&o.stdout).trim().to_string()
+            }
+            _ => continue,
+        };
+
+        let normalized_remote = remote_url
+            .trim_end_matches(".git")
+            .replace("git@github.com:", "https://github.com/")
+            .to_lowercase();
+
+        for (original_url, normalized) in &normalized_urls {
+            if normalized_remote == *normalized {
+                // repo_full_name 추출: https://github.com/owner/repo → owner/repo
+                let repo_full_name = normalized
+                    .replace("https://github.com/", "")
+                    .to_string();
+
+                // 이미 찾은 경우 더 짧은 경로(루트에 가까운) 우선
+                if let Some(existing) = result.get(&repo_full_name) {
+                    if project_dir.to_string_lossy().len() < existing.len() {
+                        result.insert(repo_full_name, project_dir.to_string_lossy().to_string());
+                    }
+                } else {
+                    result.insert(repo_full_name, project_dir.to_string_lossy().to_string());
+                }
+                break;
+            }
+        }
+    }
+
+    log::info!("📍 자동 탐색: {}개 프로젝트 경로 발견", result.len());
+    serde_json::to_value(&result).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -203,6 +295,7 @@ pub fn run() {
             toggle_watch_all,
             get_watch_status,
             get_offline_changes,
+            resolve_local_paths,
         ])
         .setup(|app| {
             // ─── 시스템 트레이 ───

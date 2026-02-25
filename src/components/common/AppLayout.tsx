@@ -31,6 +31,9 @@ import { ActiveTaskView } from '../views/ActiveTaskView'
 import { LogView } from '../views/LogView'
 import { SettingsView } from '../views/SettingsView'
 import { OrchestrationView } from '../views/OrchestrationView'
+import { ConsentModal } from '../consent/ConsentModal'
+import { useConsent } from '../../hooks/useConsent'
+import { startSyncInterval } from '../../lib/sync/SyncService'
 
 // ─── 6탭 ViewType ───
 export type ViewType = 'dashboard' | 'release-plan' | 'timeline' | 'active-task' | 'orchestration' | 'log' | 'settings'
@@ -49,11 +52,18 @@ export function AppLayout() {
     const [refreshTrigger, setRefreshTrigger] = useState(0)
     const [activeTab, setActiveTab] = useState<ViewType>('dashboard')
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    const { needsOnboarding, setInitialConsent } = useConsent()
 
     const refresh = useCallback(() => {
         setRefreshTrigger((v) => v + 1)
         void refreshSession()
     }, [refreshSession])
+
+    // 동기화 서비스 시작 (Tauri 앱에서만)
+    useEffect(() => {
+        const cleanup = startSyncInterval()
+        return cleanup
+    }, [])
 
     // ─── 메인 네비게이션 (Settings 제외) ───
     const navigationItems: NavItem[] = [
@@ -140,6 +150,11 @@ export function AppLayout() {
 
     return (
         <div className="min-h-screen">
+            {/* 온보딩 동의 모달 */}
+            <ConsentModal
+                open={needsOnboarding}
+                onComplete={(data) => void setInitialConsent(data)}
+            />
             {/* Header */}
             <header
                 className="sticky top-0 z-50 border-b"

@@ -141,7 +141,89 @@ impl LocalDb {
             INSERT OR IGNORE INTO schema_version (version) VALUES (1);
         ")?;
 
-        log::info!("✅ 로컬 DB 스키마 마이그레이션 완료 (v1)");
+        // ─── v2: 동기화 대상 테이블 ───
+        let v2_applied: bool = conn.query_row(
+            "SELECT COUNT(*) > 0 FROM schema_version WHERE version = 2",
+            [], |row| row.get(0),
+        ).unwrap_or(false);
+
+        if !v2_applied {
+            conn.execute_batch("
+                -- 작업 항목 (동기화 대상)
+                CREATE TABLE IF NOT EXISTS work_items (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'open',
+                    priority TEXT NOT NULL DEFAULT 'medium',
+                    project_id TEXT,
+                    description TEXT,
+                    due_at TEXT,
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    sync_status TEXT NOT NULL DEFAULT 'pending',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+
+                -- 플랜 (동기화 대상)
+                CREATE TABLE IF NOT EXISTS plans (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    plan_type TEXT NOT NULL DEFAULT 'task',
+                    status TEXT NOT NULL DEFAULT 'open',
+                    priority TEXT NOT NULL DEFAULT 'medium',
+                    description TEXT,
+                    due_at TEXT,
+                    start_at TEXT,
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    sync_status TEXT NOT NULL DEFAULT 'pending',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+
+                -- 목표 (동기화 대상)
+                CREATE TABLE IF NOT EXISTS goals (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    plan_id TEXT,
+                    status TEXT NOT NULL DEFAULT 'open',
+                    progress REAL NOT NULL DEFAULT 0,
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    sync_status TEXT NOT NULL DEFAULT 'pending',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+
+                -- 세션 로그 (동기화 대상)
+                CREATE TABLE IF NOT EXISTS session_logs (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT,
+                    editor_type TEXT,
+                    started_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    ended_at TEXT,
+                    duration_min INTEGER,
+                    summary TEXT,
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    sync_status TEXT NOT NULL DEFAULT 'pending',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+
+                -- 동기화 큐 (오프라인 변경 추적)
+                CREATE TABLE IF NOT EXISTS sync_queue (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    table_name TEXT NOT NULL,
+                    record_id TEXT NOT NULL,
+                    operation TEXT NOT NULL,
+                    payload TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    synced INTEGER NOT NULL DEFAULT 0
+                );
+
+                INSERT INTO schema_version (version) VALUES (2);
+            ")?;
+            log::info!("✅ v2 마이그레이션: 동기화 대상 테이블 5개 추가");
+        }
+
+        log::info!("✅ 로컬 DB 스키마 마이그레이션 완료");
         Ok(())
     }
 }
@@ -390,6 +472,130 @@ impl LocalDb {
         let conn = self.lock_conn()?;
         conn.execute("DELETE FROM projects WHERE id = ?1", params![id])?;
         Ok(())
+    }
+}
+
+// ─── CRUD: sync_queue ───
+
+impl LocalDb {
+    /// 동기화 큐에 변경 사항 추가
+    pub fn enqueue_sync(
+        &self, table_name: &str, record_id: &str, operation: &str, payload: &str,
+    ) -> SqliteResult<()> {
+        let conn = self.lock_conn()?;
+        conn.execute(
+            "INSERT INTO sync_queue (table_name, record_id, operation, payload) VALUES (?1, ?2, ?3, ?4)",
+            params![table_name, record_id, operation, payload],
+        )?;
+        Ok(())
+    }
+
+    /// 미동기화 큐 항목 조회
+    pub fn get_pending_sync(&self) -> SqliteResult<Vec<serde_json::Value>> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, table_name, record_id, operation, payload, created_at
+             FROM sync_queue WHERE synced = 0 ORDER BY id ASC LIMIT 50"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let payload_str = row.get::<_, String>(4)?;
+            let payload: serde_json::Value = serde_json::from_str(&payload_str)
+                .unwrap_or(serde_json::json!({}));
+            Ok(serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "table_name": row.get::<_, String>(1)?,
+                "record_id": row.get::<_, String>(2)?,
+                "operation": row.get::<_, String>(3)?,
+                "payload": payload,
+                "created_at": row.get::<_, String>(5)?,
+            }))
+        })?;
+        rows.collect()
+    }
+
+    /// 동기화 완료로 마킹
+    pub fn mark_synced(&self, queue_ids: &[i64]) -> SqliteResult<()> {
+        if queue_ids.is_empty() { return Ok(()); }
+        let conn = self.lock_conn()?;
+        let placeholders: Vec<String> = queue_ids.iter().map(|_| "?".to_string()).collect();
+        let sql = format!(
+            "UPDATE sync_queue SET synced = 1 WHERE id IN ({})",
+            placeholders.join(",")
+        );
+        let params: Vec<Box<dyn rusqlite::types::ToSql>> = queue_ids
+            .iter()
+            .map(|id| Box::new(*id) as Box<dyn rusqlite::types::ToSql>)
+            .collect();
+        conn.execute(&sql, rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())))?;
+        Ok(())
+    }
+
+    /// 범용 JSON upsert (work_items, plans, goals, session_logs)
+    pub fn upsert_syncable(
+        &self, table_name: &str, record: &serde_json::Value,
+    ) -> SqliteResult<String> {
+        let id = record["id"].as_str()
+            .unwrap_or(&uuid::Uuid::new_v4().to_string())
+            .to_string();
+        let json_str = serde_json::to_string(record).unwrap_or_else(|_| "{}".to_string());
+
+        // 1) 기존 레코드가 있는지 확인
+        let conn = self.lock_conn()?;
+        let exists: bool = conn.query_row(
+            &format!("SELECT COUNT(*) > 0 FROM {} WHERE id = ?1", table_name),
+            params![id],
+            |row| row.get(0),
+        ).unwrap_or(false);
+
+        if exists {
+            // updated_at 비교 (last-write-wins)
+            conn.execute(
+                &format!(
+                    "UPDATE {} SET metadata = json_patch(metadata, ?2), sync_status = 'pending', updated_at = datetime('now') WHERE id = ?1",
+                    table_name
+                ),
+                params![id, json_str],
+            )?;
+        } else {
+            // 삽입: metadata에 전체 JSON 저장 (스키마 유연성)
+            let title = record["title"].as_str().unwrap_or("Untitled");
+            let status = record["status"].as_str().unwrap_or("open");
+            conn.execute(
+                &format!(
+                    "INSERT INTO {} (id, title, status, metadata, sync_status) VALUES (?1, ?2, ?3, ?4, 'pending')",
+                    table_name
+                ),
+                params![id, title, status, json_str],
+            )?;
+        }
+
+        // 2) sync_queue에도 추가
+        self.enqueue_sync(table_name, &id, if exists { "update" } else { "insert" }, &json_str)?;
+
+        Ok(id)
+    }
+
+    /// 범용 syncable 테이블 전체 조회
+    pub fn get_all_syncable(&self, table_name: &str) -> SqliteResult<Vec<serde_json::Value>> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            &format!("SELECT id, title, status, metadata, sync_status, created_at, updated_at FROM {} ORDER BY created_at DESC", table_name)
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let metadata_str = row.get::<_, String>(3)?;
+            let metadata: serde_json::Value = serde_json::from_str(&metadata_str)
+                .unwrap_or(serde_json::json!({}));
+            Ok(serde_json::json!({
+                "id": row.get::<_, String>(0)?,
+                "title": row.get::<_, String>(1)?,
+                "status": row.get::<_, String>(2)?,
+                "metadata": metadata,
+                "sync_status": row.get::<_, String>(4)?,
+                "created_at": row.get::<_, String>(5)?,
+                "updated_at": row.get::<_, String>(6)?,
+            }))
+        })?;
+        rows.collect()
     }
 }
 

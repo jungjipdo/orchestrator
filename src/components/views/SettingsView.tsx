@@ -21,6 +21,7 @@ import {
 import { useGitHub } from '../../hooks/useGitHub'
 import { useModelScores, type ModelScoreEntry, DEFAULT_SCORES } from '../../hooks/useModelScores'
 import { useEditorModels } from '../../hooks/useEditorModels'
+import { useConsent } from '../../hooks/useConsent'
 import type { AIModel, EditorType } from '../../types/index'
 import { useWatcher } from '../../hooks/useWatcher'
 import { useProjects } from '../../hooks/useProjects'
@@ -427,6 +428,9 @@ export function SettingsView() {
             {/* File Watcher Settings (Tauri App) */}
             <FileWatcherCard />
 
+            {/* Data Management */}
+            <DataManagementCard />
+
             {/* Other Settings */}
             <Card>
                 <CardContent className="p-6">
@@ -630,3 +634,68 @@ function FileWatcherCard() {
     )
 }
 
+// ─── Data Management Card ───
+
+function DataManagementCard() {
+    const { consent, toggleDataCollection, toggleSyncConsent } = useConsent()
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                    <Settings className="w-5 h-5" />
+                    데이터 관리
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {/* 모델 개선 데이터 수집 */}
+                <div className="flex items-start justify-between p-3 rounded-lg border">
+                    <div className="flex-1">
+                        <div className="text-sm font-medium">모델 개선 데이터 수집</div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            작업 패턴, AI 배정 기록을 익명화하여 수집합니다.
+                        </p>
+                        {!consent.dataCollection && (
+                            <p className="text-xs text-amber-600 mt-1">
+                                ⚠️ AI 추천이 개인 이력만 기반으로 작동합니다.
+                            </p>
+                        )}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => void toggleDataCollection(!consent.dataCollection)}
+                        className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0 ml-3 ${consent.dataCollection ? 'bg-primary' : 'bg-muted'}`}
+                    >
+                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${consent.dataCollection ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+
+                {/* 멀티 디바이스 동기화 */}
+                <div className="flex items-start justify-between p-3 rounded-lg border">
+                    <div className="flex-1">
+                        <div className="text-sm font-medium">멀티 디바이스 동기화</div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            작업 목록, 세션 기록을 여러 기기에서 동기화합니다.
+                        </p>
+                        {!consent.syncConsent && (
+                            <p className="text-xs text-amber-600 mt-1">
+                                ⚠️ 이 기기에서만 데이터가 저장됩니다.
+                            </p>
+                        )}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => void toggleSyncConsent(!consent.syncConsent)}
+                        className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0 ml-3 ${consent.syncConsent ? 'bg-primary' : 'bg-muted'}`}
+                    >
+                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${consent.syncConsent ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+
+                <p className="text-[11px] text-muted-foreground">
+                    파일 내용은 절대 수집하지 않습니다. 이 설정은 언제든 변경할 수 있습니다.
+                </p>
+            </CardContent>
+        </Card>
+    )
+}

@@ -343,6 +343,63 @@ async fn db_upsert_project(
     Ok("ok".to_string())
 }
 
+#[tauri::command]
+async fn db_get_preference(app: tauri::AppHandle, key: String) -> Result<Option<String>, String> {
+    let state = app.state::<AppState>();
+    state.db.get_preference(&key).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn db_set_preference(app: tauri::AppHandle, key: String, value: String) -> Result<String, String> {
+    let state = app.state::<AppState>();
+    state.db.set_preference(&key, &value).map_err(|e| e.to_string())?;
+    Ok("ok".to_string())
+}
+
+#[tauri::command]
+async fn db_get_pending_sync(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let state = app.state::<AppState>();
+    let items = state.db.get_pending_sync().map_err(|e| e.to_string())?;
+    Ok(serde_json::json!(items))
+}
+
+#[tauri::command]
+async fn db_mark_synced(app: tauri::AppHandle, queue_ids: Vec<i64>) -> Result<String, String> {
+    let state = app.state::<AppState>();
+    state.db.mark_synced(&queue_ids).map_err(|e| e.to_string())?;
+    Ok("ok".to_string())
+}
+
+#[tauri::command]
+async fn db_upsert_syncable(
+    app: tauri::AppHandle,
+    table_name: String,
+    record: serde_json::Value,
+) -> Result<String, String> {
+    // 테이블명 화이트리스트
+    let allowed = ["work_items", "plans", "goals", "session_logs"];
+    if !allowed.contains(&table_name.as_str()) {
+        return Err(format!("허용되지 않은 테이블: {}", table_name));
+    }
+    let state = app.state::<AppState>();
+    let id = state.db.upsert_syncable(&table_name, &record).map_err(|e| e.to_string())?;
+    Ok(id)
+}
+
+#[tauri::command]
+async fn db_get_syncable(
+    app: tauri::AppHandle,
+    table_name: String,
+) -> Result<serde_json::Value, String> {
+    let allowed = ["work_items", "plans", "goals", "session_logs"];
+    if !allowed.contains(&table_name.as_str()) {
+        return Err(format!("허용되지 않은 테이블: {}", table_name));
+    }
+    let state = app.state::<AppState>();
+    let items = state.db.get_all_syncable(&table_name).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!(items))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let db = local_db::LocalDb::open().expect("로컬 DB 초기화 실패");
@@ -379,6 +436,12 @@ pub fn run() {
             db_upsert_editor_models,
             db_get_projects,
             db_upsert_project,
+            db_get_preference,
+            db_set_preference,
+            db_get_pending_sync,
+            db_mark_synced,
+            db_upsert_syncable,
+            db_get_syncable,
         ])
         .setup(|app| {
             // ─── 시스템 트레이 ───

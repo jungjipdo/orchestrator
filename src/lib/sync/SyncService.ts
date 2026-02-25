@@ -4,11 +4,17 @@
 // ============================================
 
 import { supabase } from '../supabase/client'
+import { anonymizeForSync } from './anonymize'
 
 /** Tauri 환경인지 체크 */
 function isTauri(): boolean {
     return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
+
+// 데이터 수집 동의 필요 테이블 (익명화 필수)
+const DATA_COLLECTION_TABLES = ['event_logs', 'cli_events', 'agent_tasks', 'run_results']
+// 동기화 동의 테이블 (그대로 전송)
+const SYNC_TABLES = ['work_items', 'plans', 'goals', 'session_logs']
 
 interface SyncQueueItem {
     id: number
@@ -28,10 +34,13 @@ export async function processSyncQueue(): Promise<number> {
 
     const { invoke } = await import('@tauri-apps/api/core')
 
-    // 1. sync_consent 확인
-    const consent = await invoke<string | null>('db_get_preference', { key: 'sync_consent' })
-    if (consent !== 'true') {
-        return 0 // 동기화 미동의 → 스킵
+    // 1. 동의 상태 확인
+    const syncConsent = await invoke<string | null>('db_get_preference', { key: 'sync_consent' })
+    const dataConsent = await invoke<string | null>('db_get_preference', { key: 'data_collection_consent' })
+
+    // 둘 다 OFF면 전송할 것 없음
+    if (syncConsent !== 'true' && dataConsent !== 'true') {
+        return 0
     }
 
     // 2. pending 큐 가져오기
@@ -41,14 +50,31 @@ export async function processSyncQueue(): Promise<number> {
 
     const syncedIds: number[] = []
 
-    // 3. 각 항목 Supabase에 전송
+    // 3. 각 항목 동의 상태별 + 익명화 처리 후 전송
     for (const item of pending) {
         try {
+            // 동의 확인: 해당 테이블의 동의가 없으면 스킵
+            if (DATA_COLLECTION_TABLES.includes(item.table_name) && dataConsent !== 'true') {
+                syncedIds.push(item.id) // consent OFF → 전송 안 함, 큐에서 제거
+                continue
+            }
+            if (SYNC_TABLES.includes(item.table_name) && syncConsent !== 'true') {
+                syncedIds.push(item.id)
+                continue
+            }
+
             if (item.operation === 'insert' || item.operation === 'update') {
+                // 데이터 수집 테이블은 익명화
+                const payloadToSend = DATA_COLLECTION_TABLES.includes(item.table_name)
+                    ? await anonymizeForSync(item.table_name, item.payload)
+                    : item.payload
+
+                if (!payloadToSend) continue // 익명화 실패
+
                 const { error } = await supabase
                     .from(item.table_name)
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    .upsert(item.payload as any, { onConflict: 'id' })
+                    .upsert(payloadToSend as any, { onConflict: 'id' })
 
                 if (error) {
                     console.warn(`[Sync] ${item.table_name}/${item.record_id} 실패:`, error.message)

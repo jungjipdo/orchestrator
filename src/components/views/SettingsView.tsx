@@ -16,11 +16,14 @@ import {
     ChevronRight,
     Check,
     RefreshCw,
+    Eye,
 } from 'lucide-react'
 import { useGitHub } from '../../hooks/useGitHub'
 import { useModelScores, type ModelScoreEntry, DEFAULT_SCORES } from '../../hooks/useModelScores'
 import { useEditorModels } from '../../hooks/useEditorModels'
 import type { AIModel, EditorType } from '../../types/index'
+import { useWatcher } from '../../hooks/useWatcher'
+import { useProjects } from '../../hooks/useProjects'
 
 const ALL_MODELS: { key: AIModel; label: string; short: string }[] = [
     // 최신 → 이전 순서 (왼쪽이 최신)
@@ -421,6 +424,9 @@ export function SettingsView() {
                 </CardContent>
             </Card>
 
+            {/* File Watcher Settings (Tauri App) */}
+            <FileWatcherCard />
+
             {/* Other Settings */}
             <Card>
                 <CardContent className="p-6">
@@ -434,3 +440,166 @@ export function SettingsView() {
         </div>
     )
 }
+
+// ─── File Watcher Card ───
+
+function FileWatcherCard() {
+    const { isTauriApp, watchStatus, addProject, removeProject, toggleAll, recentChanges, error } = useWatcher()
+    const { projects } = useProjects()
+    const [editingPath, setEditingPath] = useState<Record<string, string>>({})
+
+    if (!isTauriApp) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                        <Eye className="w-5 h-5" />
+                        File Watcher
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-center py-4 text-muted-foreground">
+                        <Eye className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <h3 className="text-sm font-medium mb-1">데스크탑 앱 전용</h3>
+                        <p className="text-xs">파일 감시 기능은 Orchestrator 데스크탑 앱에서만 사용 가능합니다.</p>
+                    </div>
+                </CardContent>
+            </Card>
+        )
+    }
+
+    const handleSetPath = async (repoFullName: string) => {
+        const path = editingPath[repoFullName]
+        if (!path) return
+        await addProject(repoFullName, path)
+        setEditingPath((prev) => {
+            const next = { ...prev }
+            delete next[repoFullName]
+            return next
+        })
+    }
+
+    const watchingProjects = watchStatus?.projects ?? []
+
+    return (
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                        <Eye className="w-5 h-5" />
+                        File Watcher
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground">
+                        프로젝트 파일 변경을 실시간 감시합니다.
+                    </p>
+                </div>
+                <Button
+                    variant={watchStatus?.enabled ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => void toggleAll()}
+                >
+                    {watchStatus?.enabled ? '⏸ 전체 중지' : '▶ 전체 시작'}
+                </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {error && (
+                    <div className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded px-3 py-2">
+                        {error}
+                    </div>
+                )}
+
+                {/* 프로젝트별 경로 설정 */}
+                <div className="border rounded-lg divide-y">
+                    {projects.map((project) => {
+                        const wp = watchingProjects.find((w) => w.repo_full_name === project.repo_full_name)
+                        const isEditing = editingPath[project.repo_full_name] !== undefined
+                        return (
+                            <div key={project.id} className="px-4 py-3 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium">{project.repo_name}</span>
+                                        {wp?.watching ? (
+                                            <Badge variant="default" className="text-[10px] h-4 bg-green-600">watching</Badge>
+                                        ) : wp ? (
+                                            <Badge variant="outline" className="text-[10px] h-4">stopped</Badge>
+                                        ) : (
+                                            <Badge variant="outline" className="text-[10px] h-4 text-muted-foreground">경로 미설정</Badge>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        {wp && (
+                                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => void removeProject(project.repo_full_name)}>
+                                                해제
+                                            </Button>
+                                        )}
+                                        {!isEditing && (
+                                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs"
+                                                onClick={() => setEditingPath((prev) => ({
+                                                    ...prev,
+                                                    [project.repo_full_name]: wp?.path ?? '',
+                                                }))}
+                                            >
+                                                {wp ? '경로 변경' : '경로 설정'}
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                                {wp?.path && !isEditing && (
+                                    <p className="text-[11px] text-muted-foreground font-mono truncate">{wp.path}</p>
+                                )}
+                                {isEditing && (
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            className="flex-1 text-xs bg-muted/50 border rounded px-2 py-1.5 font-mono"
+                                            placeholder="/Users/.../프로젝트경로"
+                                            value={editingPath[project.repo_full_name] ?? ''}
+                                            onChange={(e) => setEditingPath((prev) => ({ ...prev, [project.repo_full_name]: e.target.value }))}
+                                            onKeyDown={(e) => { if (e.key === 'Enter') void handleSetPath(project.repo_full_name) }}
+                                        />
+                                        <Button size="sm" className="h-7 px-2 text-xs" onClick={() => void handleSetPath(project.repo_full_name)}>
+                                            <Check className="w-3.5 h-3.5" />
+                                        </Button>
+                                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs"
+                                            onClick={() => setEditingPath((prev) => {
+                                                const next = { ...prev }
+                                                delete next[project.repo_full_name]
+                                                return next
+                                            })}
+                                        >
+                                            취소
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })}
+                    {projects.length === 0 && (
+                        <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                            프로젝트를 먼저 import하세요
+                        </div>
+                    )}
+                </div>
+
+                {/* 최근 변경 로그 */}
+                {recentChanges.length > 0 && (
+                    <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">최근 변경 ({recentChanges.length})</p>
+                        <div className="border rounded-lg max-h-32 overflow-y-auto divide-y">
+                            {recentChanges.slice(0, 10).map((c, i) => (
+                                <div key={i} className="flex items-center gap-2 px-3 py-1.5 text-[11px]">
+                                    <span className={`font-medium ${c.event_type === 'add' ? 'text-green-500' : c.event_type === 'unlink' ? 'text-red-500' : 'text-yellow-500'}`}>
+                                        {c.event_type === 'add' ? '+' : c.event_type === 'unlink' ? '−' : '✎'}
+                                    </span>
+                                    <span className="truncate font-mono">{c.path}</span>
+                                    {c.violation && <Badge variant="destructive" className="text-[9px] h-4">위반</Badge>}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    )
+}
+

@@ -2,7 +2,7 @@
 // advisor.ts — AI 모델 추천 엔진 (규칙 기반)
 // TaskType + 이력 기반 최적 AI 모델 추천
 // 2026.02.19 최신 모델 기준
-// ============================================
+// ==============================================
 
 import type { AIModel } from '../../types/index'
 import type { TaskType } from './taskTypes'

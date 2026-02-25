@@ -157,6 +157,7 @@ export function AppLayout() {
             />
             {/* Header */}
             <header
+                data-tauri-drag-region
                 className="sticky top-0 z-50 border-b"
                 style={{
                     background: 'var(--glass-bg)',
@@ -166,7 +167,7 @@ export function AppLayout() {
                     boxShadow: 'var(--glass-shadow)',
                 }}
             >
-                <div className="flex h-16 items-center justify-between px-6">
+                <div className="flex h-16 items-center justify-between px-6 pl-20">
                     <div className="flex items-center gap-4">
                         <Button
                             variant="ghost"

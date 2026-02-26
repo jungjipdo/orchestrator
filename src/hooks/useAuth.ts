@@ -27,6 +27,9 @@ export function useAuth(): UseAuthReturn {
             setSession(s)
             setUser(s?.user ?? null)
             setLoading(false)
+        }).catch((err) => {
+            console.warn('[Auth] 세션 확인 실패 (env 누락 가능):', err)
+            setLoading(false)
         })
 
         // Auth 상태 변화 구독

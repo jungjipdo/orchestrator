@@ -102,6 +102,7 @@
     align-items: center;
     text-align: center;
     animation: landing-fadeIn 0.8s ease-out;
+    transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes landing-fadeIn {
@@ -114,6 +115,24 @@
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* ─── Exit Animation ─── */
+.landing-page--exit .landing-content {
+    opacity: 0;
+    transform: scale(0.96) translateY(-10px);
+    pointer-events: none;
+    /* 클릭 방지 */
+}
+
+.landing-page--exit .landing-bg-image-container {
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+.landing-page--exit .landing-bg-glow {
+    opacity: 0 !important;
+    transition: opacity 0.4s ease;
 }
 
 /* ─── Typography ─── */

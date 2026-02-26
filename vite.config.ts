@@ -16,12 +16,12 @@ export default defineConfig({
         name: 'Orchestrator — AI Release Management',
         short_name: 'Orchestrator',
         description: 'Continuous Development & AI Release Management',
-        theme_color: '#0f0f14',
-        background_color: '#0f0f14',
+        theme_color: '#09090b',
+        background_color: '#09090b',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
-        start_url: '/',
+        start_url: '/app',
         icons: [
           {
             src: 'pwa-192x192.png',

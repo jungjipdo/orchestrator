@@ -3,19 +3,25 @@
 // 풀스크린 1페이지, 스크롤 없이 완결
 // ============================================
 
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { ArrowRight, Download } from 'lucide-react'
 import './LandingPage.css'
 
 export function LandingPage() {
     const navigate = useNavigate()
+    const [isExiting, setIsExiting] = useState(false)
 
     const handleLaunchApp = () => {
-        void navigate('/app')
+        setIsExiting(true)
+        // CSS 애니메이션 시간(400ms) 이후 실제 라우팅 이동
+        setTimeout(() => {
+            void navigate('/app')
+        }, 400)
     }
 
     return (
-        <div className="landing-page">
+        <div className={`landing-page ${isExiting ? 'landing-page--exit' : ''}`}>
             {/* Background effects */}
             <div className="landing-bg-glow landing-bg-glow--1" />
             <div className="landing-bg-glow landing-bg-glow--2" />

@@ -29,8 +29,16 @@ export function AuthGuard({ children }: AuthGuardProps) {
     }
 
     if (!user) {
-        return <LoginPage />
+        return (
+            <div className="animate-in fade-in zoom-in-95 duration-500 ease-out fill-mode-forwards">
+                <LoginPage />
+            </div>
+        )
     }
 
-    return <>{children}</>
+    return (
+        <div className="animate-in fade-in zoom-in-95 duration-500 ease-out fill-mode-forwards h-full">
+            {children}
+        </div>
+    )
 }

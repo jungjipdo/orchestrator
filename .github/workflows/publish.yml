@@ -10,15 +10,6 @@ permissions:
 jobs:
   publish:
     runs-on: macos-latest
-    # Vite 빌드에 필요한 환경변수를 job 레벨에서 설정
-    # tauri-action → tauri build → beforeBuildCommand(npm run build) 순서로
-    # 자식 프로세스에 전달되어야 하므로 step이 아닌 job 레벨에 배치
-    env:
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-      VITE_GITHUB_CLIENT_ID: ${{ secrets.VITE_GITHUB_CLIENT_ID }}
-      VITE_GITHUB_APP_SLUG: ${{ secrets.VITE_GITHUB_APP_SLUG }}
-      VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
 
     steps:
       - name: Checkout
@@ -41,16 +32,30 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Create .env.production for Vite
+      # .env.production 파일을 직접 생성
+      # Vite는 production 빌드 시 이 파일을 자동 로드
+      - name: Create .env.production
         run: |
-          echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL" >> .env.production
-          echo "VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY" >> .env.production
-          echo "VITE_GITHUB_CLIENT_ID=$VITE_GITHUB_CLIENT_ID" >> .env.production
-          echo "VITE_GITHUB_APP_SLUG=$VITE_GITHUB_APP_SLUG" >> .env.production
-          echo "VITE_GEMINI_API_KEY=$VITE_GEMINI_API_KEY" >> .env.production
-          echo "--- .env.production created ---"
-          wc -l .env.production
-          grep VITE_ .env.production | cut -d= -f1
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" > .env.production
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env.production
+          echo "VITE_GITHUB_CLIENT_ID=${{ secrets.VITE_GITHUB_CLIENT_ID }}" >> .env.production
+          echo "VITE_GITHUB_APP_SLUG=${{ secrets.VITE_GITHUB_APP_SLUG }}" >> .env.production
+          echo "VITE_GEMINI_API_KEY=${{ secrets.VITE_GEMINI_API_KEY }}" >> .env.production
+
+      # Fail-fast: URL이 https://로 시작하지 않으면 빌드 중단
+      - name: Validate env vars
+        run: |
+          echo "=== .env.production 내용 (값 마스킹) ==="
+          while IFS='=' read -r key value; do
+            echo "$key = [${#value} chars] (first 10: ${value:0:10}...)"
+          done < .env.production
+          URL=$(grep '^VITE_SUPABASE_URL=' .env.production | cut -d'=' -f2-)
+          if [[ ! "$URL" =~ ^https:// ]]; then
+            echo "::error::VITE_SUPABASE_URL은 https://로 시작해야 합니다. 현재값: '$URL'"
+            echo "::error::GitHub Secrets에서 따옴표를 제거하고 순수 URL만 입력하세요."
+            exit 1
+          fi
+          echo "✅ VITE_SUPABASE_URL 유효: ${URL:0:20}..."
 
       - name: Build and release (Tauri)
         uses: tauri-apps/tauri-action@v0
@@ -69,4 +74,3 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: --bundles dmg
-

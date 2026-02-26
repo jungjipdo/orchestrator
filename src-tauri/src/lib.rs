@@ -512,6 +512,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage({
             // Supabase 설정 로드 → SyncClient 생성
             // 1) 환경변수 직접 체크 2) CWD/.env.local 3) exe 부모 디렉토리

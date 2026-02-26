@@ -36,6 +36,8 @@ import { useConsent } from '../../hooks/useConsent'
 import { useNotifications } from '../../hooks/useNotifications'
 import { NotificationPanel } from './NotificationPanel'
 import { startSyncInterval } from '../../lib/sync/SyncService'
+import { useUpdater } from '../../hooks/useUpdater'
+import { Download } from 'lucide-react'
 
 // ─── 6탭 ViewType ───
 export type ViewType = 'dashboard' | 'release-plan' | 'timeline' | 'active-task' | 'orchestration' | 'log' | 'settings'
@@ -57,6 +59,7 @@ export function AppLayout() {
     const { needsOnboarding, setInitialConsent } = useConsent()
     const { notifications, unreadCount, markAllRead, clearAll } = useNotifications()
     const [notifOpen, setNotifOpen] = useState(false)
+    const { updateAvailable, updateInfo, downloading, installUpdate } = useUpdater()
 
     const refresh = useCallback(() => {
         setRefreshTrigger((v) => v + 1)
@@ -305,6 +308,31 @@ export function AppLayout() {
                             </Button>
                         </div>
                     </div>
+
+                    {/* Update Available (Tauri only) */}
+                    {updateAvailable && (
+                        <div className="absolute bottom-14 left-0 right-0 px-4 pb-2">
+                            <button
+                                type="button"
+                                onClick={() => void installUpdate()}
+                                disabled={downloading}
+                                className="
+                                    w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg
+                                    bg-primary/10 text-primary border border-primary/20
+                                    hover:bg-primary/20 transition-colors
+                                    disabled:opacity-50 disabled:cursor-not-allowed
+                                "
+                            >
+                                <Download className={`w-4 h-4 ${downloading ? 'animate-bounce' : ''}`} />
+                                <span className="flex-1 text-left">
+                                    {downloading
+                                        ? 'Updating...'
+                                        : `Update ${updateInfo?.version ?? ''}`
+                                    }
+                                </span>
+                            </button>
+                        </div>
+                    )}
 
                     {/* Settings — 하단 분리 유지 */}
                     <div className="absolute bottom-0 left-0 right-0 p-4 border-t">

@@ -16,5 +16,12 @@ description: Check status at session start
 
 6. **Check brain task.md for session handoff**
    `ls -la ~/.gemini/antigravity/brain/*/task.md 2>/dev/null | tail -5 || echo "No brain tasks"`
-   - If previous session's task.md exists, read it and check `[/]` (in-progress) and `[ ]` (todo) items
-   - Ask user whether to continue from where we left off
+   - If CURRENT_SPRINT.md has a `Brain Task Reference` section, read that specific task.md
+   - Otherwise, read the most recent task.md by modification time
+
+7. **Create new session task.md (MANDATORY)**
+   - Read the previous session's task.md (from step 6)
+   - Extract ALL `[ ]` (todo) and `[/]` (in-progress) items
+   - Create a NEW task.md in `~/.gemini/antigravity/brain/<current-conversation-id>/task.md`
+   - Structure: "이번 세션 완료" (empty) + carried-over incomplete items grouped by phase/section
+   - This is NOT optional — every session MUST have its own task.md with inherited incomplete work

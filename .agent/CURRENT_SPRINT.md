@@ -4,9 +4,9 @@
 Phase 1: 멀티유저 SaaS 전환 준비 — 레거시 정리 + 제품화 기반 마련
 
 ## Active Task
-- **ID**: phase-3-tauri-desktop
+- **ID**: phase-3-bugfix-watcher-delete
 - **Branch**: main (단일 브랜치)
-- **Status**: ✅ Phase 3a 완료 — Tauri 초기화 + PKCE OAuth + 시스템 트레이
+- **Status**: ✅ 프로젝트 삭제 + Watcher 이벤트 로그 + CLI Monitor 실시간 이벤트 + 모델 설정 수정 완료
 - **Worktree**: N/A
 
 ## Key Decisions
@@ -23,39 +23,43 @@ Phase 1: 멀티유저 SaaS 전환 준비 — 레거시 정리 + 제품화 기반
 - **서브태스크 저장**: Plan → `metadata.detail_plan.sub_tasks[]`, Project → 동일 패턴
 - **AI Review**: 정해진 `ReviewSnapshot` 입력 + `ReviewResult` 스키마 출력 방식
 
-## Completed (Phase 3a — Tauri Desktop)
-- [x] Tauri v2 프로젝트 초기화 (`src-tauri/`)
-- [x] PKCE OAuth: Rust 로컬 콜백 서버 → Chrome→앱 세션 전달
-- [x] tauri-plugin-opener + tauri-plugin-shell 설치
-- [x] Supabase client flowType pkce 전환
-- [x] 시스템 트레이 아이콘 (메뉴바 상주: 열기/종료)
-- [x] Chrome 새 창 열기 (`open -na 'Google Chrome'`)
-- [x] 인증완료 페이지 개선 (이모지 제거 + 브랜딩)
-- [x] orchx watch 무한루프 수정 + sync repo_full_name 파싱
-- [x] Project Activity 자동 추적 (useProjectActivity, ProjectActivityBadge)
+## Completed (이번 세션)
+- [x] `db_delete_project` Tauri 커맨드 추가 (프로젝트 실제 삭제)
+- [x] `useProjects.removeProject` → `db_delete_project` 호출로 변경
+- [x] ReleasePlanView DnD Kit 마이그레이션 + 삭제 모드 클릭 수정
+- [x] watcher.rs 파일변경 이벤트 상세 로그 (RAW/emit/Supabase)
+- [x] SyncClient 초기화: CWD + exe 디렉토리 fallback 로직
+- [x] useCliEvents Tauri `orchx:file-change` 실시간 리스너 추가
+- [x] CliMonitorPanel `payload.file` 키 표시 지원
+- [x] GPT-5.3 → CODEX-5.3 이름 변경
+- [x] antigravity 지원 모델에서 grok_code, kimi_2_5 제거
+- [x] CLI Monitor 실시간 이벤트 시각 확인 완료
+- [x] 디버그 로그 정리 (TS console.log 22개 + Rust log::info 12개 경량화)
 
 ## Files in Focus
-- `src-tauri/src/lib.rs` — Tauri 메인 (시스템 트레이 + OAuth command)
-- `src-tauri/src/oauth.rs` — Rust 로컬 콜백 서버
-- `src/hooks/useAuth.ts` — PKCE OAuth 플로우
-- `src/hooks/useGitHub.ts` — triggerOAuth PKCE 분기
-- `src/lib/tauri/openExternal.ts` — Tauri 환경 감지 유틸
+- `src-tauri/src/lib.rs` — SyncClient 초기화 + db_delete_project
+- `src-tauri/src/watcher.rs` — 파일변경 이벤트 로그
+- `src/hooks/useProjects.ts` — removeProject 실제 삭제
+- `src/hooks/useCliEvents.ts` — Tauri 이벤트 리스닝
+- `src/components/views/ReleasePlanView.tsx` — DnD Kit 리팩토링
 
 ## Blockers
-- ⚠️ Supabase Dashboard → Redirect URLs에 `http://127.0.0.1` 추가 필요 (PKCE 콜백용)
+- ⚠️ `.env.local` Supabase 키는 있으나 SyncClient CWD가 맞지 않을 수 있음 (exe fallback 추가됨, 테스트 필요)
+- ⚠️ CLI Monitor에서 Tauri 실시간 이벤트가 UI에 렌더링되는지 최종 시각 확인 필요
 
-## Next Steps (Phase 3b~4)
-1. **3b. orchx sidecar** — `pkg`로 바이너리 패키징 + `externalBin` 등록
-2. **3c. 로컬 SQLite** — `tauri-plugin-sql` + cli_events 로컬 저장
+## Next Steps
+1. **3b Step 5. orchx CLI 모드** — clap 서브커맨드 유지
+2. **3b. orchx sidecar** — `pkg`로 바이너리 패키징 + `externalBin` 등록
 3. **4a. 랜딩페이지** — 웹 첫 페이지 (앱 다운로드 + 웹 접속)
-4. **4b. CI/CD** — GitHub Actions → `.dmg` 자동 빌드 + Releases 업로드
+4. **H4. 위반 이벤트 서버 보고** → 대시보드 표시 (E2E 검증)
+5. **H6. Eval Harness** — 회귀셋 20개 + KPI 수집
 
 ## Brain Task Reference
-- Conversation ID: 6bf879c1-9bbb-42f4-9d5d-5585efde8cbe
-- Task Path: `~/.gemini/antigravity/brain/6bf879c1-9bbb-42f4-9d5d-5585efde8cbe/task.md`
-- Status: 진행중 (Phase 3a 완료, 3b/3c/4a/4b 미착수)
+- Conversation ID: 3848edcf-55a1-49e5-a700-66e89a7b532a
+- Task Path: `~/.gemini/antigravity/brain/3848edcf-55a1-49e5-a700-66e89a7b532a/task.md`
+- Status: 완료
 
 ---
-*Last updated: 2026-02-24T01:38 KST*
+*Last updated: 2026-02-26T10:20 KST*
 *This file is used for immediate context recovery at session start.*
 *Update this file when switching tasks.*

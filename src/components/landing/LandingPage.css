@@ -1,0 +1,242 @@
+/* ============================================
+   LandingPage — 다크 미니멀 랜딩 스타일
+   Antigravity-inspired, 풀스크린 단일 뷰
+   ============================================ */
+
+.landing-page {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #09090b;
+}
+
+/* ─── Ambient glow ─── */
+.landing-bg-glow {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.3;
+    pointer-events: none;
+    animation: landing-pulse 8s ease-in-out infinite alternate;
+}
+
+.landing-bg-glow--1 {
+    width: 600px;
+    height: 600px;
+    top: -200px;
+    left: -100px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.4), transparent 70%);
+}
+
+.landing-bg-glow--2 {
+    width: 500px;
+    height: 500px;
+    bottom: -150px;
+    right: -100px;
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.3), transparent 70%);
+    animation-delay: 4s;
+}
+
+@keyframes landing-pulse {
+    0% {
+        transform: scale(1);
+        opacity: 0.25;
+    }
+
+    100% {
+        transform: scale(1.15);
+        opacity: 0.4;
+    }
+}
+
+/* ─── Background Image ─── */
+.landing-bg-image-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100vw;
+    height: 100vh;
+    z-index: 0;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0.15;
+    /* 투명도 적용 */
+}
+
+.landing-bg-image {
+    width: 100%;
+    max-width: 1400px;
+    /* 원래 이미지 비율 유지하며 최대 크기 제한 */
+    height: auto;
+    object-fit: contain;
+    /* 잘리지 않고 비율 유지 */
+    transform: scale(0.8);
+    /* 전체 창 사이즈보다 살짝 작게 */
+}
+
+.landing-bg-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at center, transparent 30%, #09090b 80%),
+        linear-gradient(to bottom, transparent 60%, #09090b 100%);
+}
+
+/* ─── Content Layout (Centered) ─── */
+.landing-content {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 900px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    animation: landing-fadeIn 0.8s ease-out;
+}
+
+@keyframes landing-fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ─── Typography ─── */
+.landing-title {
+    font-size: clamp(3rem, 6vw, 5.5rem);
+    font-weight: 600;
+    color: #fafafa;
+    letter-spacing: -0.04em;
+    margin: 0 0 0.5rem;
+    line-height: 1.1;
+}
+
+.landing-subtitle {
+    font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+    color: rgba(250, 250, 250, 0.8);
+    font-weight: 400;
+    margin: 0 0 1.5rem;
+    letter-spacing: -0.01em;
+}
+
+.landing-description {
+    font-size: clamp(0.95rem, 1.5vw, 1.1rem);
+    color: rgba(250, 250, 250, 0.45);
+    margin: 0 0 3rem;
+    letter-spacing: 0.01em;
+    max-width: 600px;
+    line-height: 1.6;
+}
+
+/* ─── CTA Buttons (Pill shape) ─── */
+.landing-cta-group {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.landing-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.85rem 2rem;
+    border-radius: 9999px;
+    /* 안티그래비티 레퍼런스(Pill 형태) */
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    border: none;
+}
+
+.landing-cta--primary {
+    background: #fafafa;
+    color: #09090b;
+}
+
+.landing-cta--primary:hover {
+    background: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 255, 255, 0.2);
+}
+
+.landing-cta--secondary {
+    background: #18181b;
+    /* 다크 그레이 배경 */
+    color: #fafafa;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.landing-cta--secondary:hover {
+    background: #27272a;
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.landing-cta-icon {
+    width: 18px;
+    height: 18px;
+}
+
+/* ─── Footer ─── */
+.landing-footer {
+    margin-top: 5rem;
+    font-size: 0.85rem;
+    color: rgba(250, 250, 250, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.landing-footer-dot {
+    opacity: 0.4;
+}
+
+.landing-footer-link {
+    color: rgba(250, 250, 250, 0.5);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.landing-footer-link:hover {
+    color: rgba(250, 250, 250, 0.9);
+}
+
+/* ─── Mobile ─── */
+@media (max-width: 640px) {
+    .hidden.sm\:block {
+        display: none;
+    }
+
+    .landing-cta-group {
+        flex-direction: column;
+        width: 100%;
+        max-width: 320px;
+    }
+
+    .landing-cta {
+        width: 100%;
+        justify-content: center;
+        padding: 1rem 2rem;
+    }
+}

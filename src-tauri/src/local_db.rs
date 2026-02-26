@@ -539,6 +539,14 @@ impl LocalDb {
             .to_string();
         let json_str = serde_json::to_string(record).unwrap_or_else(|_| "{}".to_string());
 
+        // 주요 필드 추출
+        let title = record["title"].as_str().unwrap_or("Untitled");
+        let status = record["status"].as_str().unwrap_or("open");
+        let plan_type = record["plan_type"].as_str();
+        let priority = record["priority"].as_str();
+        let description = record["description"].as_str();
+        let due_at = record["due_at"].as_str();
+
         // 1) 기존 레코드가 있는지 확인
         let conn = self.lock_conn()?;
         let exists: bool = conn.query_row(
@@ -548,18 +556,41 @@ impl LocalDb {
         ).unwrap_or(false);
 
         if exists {
-            // updated_at 비교 (last-write-wins)
+            // UPDATE: 주요 컬럼 + metadata 모두 업데이트
             conn.execute(
                 &format!(
-                    "UPDATE {} SET metadata = json_patch(metadata, ?2), sync_status = 'pending', updated_at = datetime('now') WHERE id = ?1",
+                    "UPDATE {} SET title = ?2, status = ?3, metadata = json_patch(metadata, ?4), sync_status = 'pending', updated_at = datetime('now') WHERE id = ?1",
                     table_name
                 ),
-                params![id, json_str],
+                params![id, title, status, json_str],
             )?;
+            // plan_type 등 선택적 컬럼 업데이트
+            if let Some(pt) = plan_type {
+                let _ = conn.execute(
+                    &format!("UPDATE {} SET plan_type = ?2 WHERE id = ?1", table_name),
+                    params![id, pt],
+                );
+            }
+            if let Some(p) = priority {
+                let _ = conn.execute(
+                    &format!("UPDATE {} SET priority = ?2 WHERE id = ?1", table_name),
+                    params![id, p],
+                );
+            }
+            if let Some(d) = description {
+                let _ = conn.execute(
+                    &format!("UPDATE {} SET description = ?2 WHERE id = ?1", table_name),
+                    params![id, d],
+                );
+            }
+            if let Some(da) = due_at {
+                let _ = conn.execute(
+                    &format!("UPDATE {} SET due_at = ?2 WHERE id = ?1", table_name),
+                    params![id, da],
+                );
+            }
         } else {
             // 삽입: metadata에 전체 JSON 저장 (스키마 유연성)
-            let title = record["title"].as_str().unwrap_or("Untitled");
-            let status = record["status"].as_str().unwrap_or("open");
             conn.execute(
                 &format!(
                     "INSERT INTO {} (id, title, status, metadata, sync_status) VALUES (?1, ?2, ?3, ?4, 'pending')",

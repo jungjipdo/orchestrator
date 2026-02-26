@@ -1,6 +1,6 @@
-// ============================================
+// ==========================================
 // useProjects — 프로젝트 목록 + CRUD 훅
-// ============================================
+// ==========================================
 
 import { useState, useCallback, useEffect } from 'react'
 import {
@@ -100,13 +100,24 @@ export function useProjects(): UseProjectsReturn {
     }, [projects])
 
     const removeProject = useCallback(async (id: string) => {
-        if (isTauri()) {
-            const { invoke } = await import('@tauri-apps/api/core')
-            await invoke('db_upsert_project', { project: { id, status: 'archived' } })
-        } else {
-            await deleteProject(id)
+        console.log('[useProjects] removeProject 호출:', id)
+        try {
+            if (isTauri()) {
+                const { invoke } = await import('@tauri-apps/api/core')
+                console.log('[useProjects] Tauri db_delete_project 호출:', id)
+                await invoke('db_delete_project', { id })
+                console.log('[useProjects] Tauri db_delete_project 성공:', id)
+            } else {
+                console.log('[useProjects] Supabase deleteProject 호출:', id)
+                await deleteProject(id)
+                console.log('[useProjects] Supabase deleteProject 성공:', id)
+            }
+            setProjects((prev) => prev.filter((p) => p.id !== id))
+            console.log('[useProjects] UI에서 프로젝트 제거 완료:', id)
+        } catch (err) {
+            console.error('[useProjects] removeProject 실패:', id, err)
+            throw err
         }
-        setProjects((prev) => prev.filter((p) => p.id !== id))
     }, [])
 
     return {

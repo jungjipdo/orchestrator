@@ -1,7 +1,7 @@
-// ============================================
+// =====================================
 // CliMonitorPanel — CLI 이벤트 실시간 모니터링 패널
 // OrchestrationView 하단에 배치
-// ============================================
+// =====================================
 
 import { useState } from 'react'
 import { useCliEvents } from '../../hooks/useCliEvents'
@@ -14,8 +14,6 @@ import {
     TestTube2,
     ClipboardCheck,
     RefreshCw,
-    ChevronDown,
-    ChevronUp,
     Radio,
 } from 'lucide-react'
 import { Button } from '../ui/button'
@@ -86,8 +84,10 @@ function timeAgo(isoString: string): string {
 
 export function CliMonitorPanel() {
     const { events, loading, error, refresh } = useCliEvents({ limit: 50 })
-    const [isExpanded, setIsExpanded] = useState(true)
     const [filter, setFilter] = useState<string | null>(null)
+
+    // 디버그: 이벤트 목록 변화 추적
+    console.log('[CliMonitorPanel] events:', events.length, events.slice(0, 2).map(e => `${e.event_type}:${(e.payload as Record<string, unknown>)?.file ?? (e.payload as Record<string, unknown>)?.path}`))
 
     const filteredEvents = filter
         ? events.filter(e => e.event_type === filter)
@@ -103,7 +103,7 @@ export function CliMonitorPanel() {
 
     return (
         <Card>
-            <CardHeader className="cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+            <CardHeader>
                 <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2">
                         <Radio className={`w-4 h-4 ${events.length > 0 ? 'text-green-500 animate-pulse' : 'text-muted-foreground'}`} />
@@ -117,21 +117,18 @@ export function CliMonitorPanel() {
                             {events.length} events
                         </Badge>
                     </CardTitle>
-                    <div className="flex items-center gap-2">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => { e.stopPropagation(); void refresh() }}
-                            className="h-8 w-8 p-0"
-                        >
-                            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                        </Button>
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </div>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void refresh()}
+                        className="h-8 w-8 p-0"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                    </Button>
                 </div>
             </CardHeader>
 
-            {isExpanded && (
+            {(
                 <CardContent className="space-y-4">
                     {/* 에러 */}
                     {error && (
@@ -184,7 +181,7 @@ export function CliMonitorPanel() {
                             }
                         </div>
                     ) : (
-                        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1 pb-2">
                             {filteredEvents.map((event) => {
                                 const config = EVENT_TYPE_MAP[event.event_type] ?? DEFAULT_CONFIG
                                 const payload = event.payload as Record<string, unknown>
@@ -212,6 +209,11 @@ export function CliMonitorPanel() {
                                                 {'path' in payload && (
                                                     <div className="font-mono truncate">
                                                         📂 {String(payload.path)}
+                                                    </div>
+                                                )}
+                                                {'file' in payload && !('path' in payload) && (
+                                                    <div className="font-mono truncate">
+                                                        📂 {String(payload.file)}
                                                     </div>
                                                 )}
                                                 {'reason' in payload && (

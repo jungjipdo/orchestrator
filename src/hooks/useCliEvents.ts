@@ -1,7 +1,7 @@
-// ============================================
+// ========================================
 // useCliEvents — CLI 이벤트 실시간 조회 훅
-// 초기 로딩 + Supabase Realtime 구독
-// ============================================
+// 초기 로딩 + Supabase Realtime + Tauri 이벤트
+// ========================================
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CliEventRow } from '../types/database'
@@ -11,6 +11,11 @@ import {
     subscribeCliEvents,
     unsubscribeCliEvents,
 } from '../lib/supabase/cliEvents'
+
+/** Tauri 환경인지 체크 */
+function isTauri(): boolean {
+    return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+}
 
 interface UseCliEventsReturn {
     events: CliEventRow[]
@@ -51,14 +56,12 @@ export function useCliEvents(options?: {
         void refresh()
     }, [refresh])
 
-    // 실시간 구독
+    // Supabase 실시간 구독
     useEffect(() => {
         if (!realtime) return
 
         const channel = subscribeCliEvents((newEvent) => {
-            // 타입 필터링
             if (eventType && newEvent.event_type !== eventType) return
-            // 최신 이벤트를 상단에 추가
             setEvents(prev => [newEvent, ...prev].slice(0, limit))
         })
 
@@ -71,6 +74,43 @@ export function useCliEvents(options?: {
             }
         }
     }, [realtime, eventType, limit])
+
+    // Tauri orchx:file-change 이벤트 리스닝 (앱 전용, 실시간)
+    useEffect(() => {
+        if (!isTauri()) return
+
+        console.log('[useCliEvents] Tauri orchx:file-change 리스너 등록 시작')
+        let unlisten: (() => void) | null = null
+
+        import('@tauri-apps/api/event').then(({ listen }) => {
+            listen<{ path: string; event_type: string; violation: string | null }>('orchx:file-change', (event) => {
+                const p = event.payload
+                console.log('[useCliEvents] 📝 Tauri 이벤트 수신:', p.path, p.event_type)
+                // CliEventRow 형식으로 변환하여 로컬 이벤트 목록에 추가
+                const localEvent: CliEventRow = {
+                    id: crypto.randomUUID(),
+                    event_id: crypto.randomUUID(),
+                    event_type: 'file.changed',
+                    payload: { file: p.path, event_type: p.event_type, violation: p.violation },
+                    created_at: new Date().toISOString(),
+                    session_id: null,
+                    project_id: null,
+                    status: 'processed',
+                    retry_count: 0,
+                    processed_at: new Date().toISOString(),
+                }
+                if (eventType && localEvent.event_type !== eventType) return
+                setEvents(prev => [localEvent, ...prev].slice(0, limit))
+            }).then(fn => {
+                unlisten = fn
+                console.log('[useCliEvents] ✅ Tauri 리스너 등록 완료')
+            })
+        }).catch(err => {
+            console.error('[useCliEvents] ❌ Tauri 리스너 등록 실패:', err)
+        })
+
+        return () => { unlisten?.() }
+    }, [eventType, limit])
 
     return { events, loading, error, refresh }
 }

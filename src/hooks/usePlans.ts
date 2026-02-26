@@ -1,6 +1,7 @@
 // ============================================
 // usePlans — plans 조회 + 생성 훅
 // Event 타입: fixed_events 동시 생성으로 Timeline 연동
+// 항상 Supabase 사용 (Tauri WebView에서도 동작)
 // ============================================
 
 import { useState, useEffect, useCallback, useMemo } from 'react'

@@ -1,6 +1,6 @@
-// ============================================
+// ========================================
 // SettingsView — Settings + GitHub + 모델 관리
-// ============================================
+// ==========================================
 
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
@@ -32,8 +32,8 @@ const ALL_MODELS: { key: AIModel; label: string; short: string }[] = [
     { key: 'claude_opus_4_6', label: 'Claude Opus 4.6', short: 'Opus 4.6' },
     { key: 'claude_sonnet_4_6', label: 'Claude Sonnet 4.6', short: 'Sonnet 4.6' },
     // OpenAI
-    { key: 'gpt_5_3_codex', label: 'GPT-5.3-Codex', short: 'GPT-5.3' },
-    { key: 'gpt_5_3_codex_spark', label: 'GPT-5.3-Codex-Spark', short: 'Spark' },
+    { key: 'gpt_5_3_codex', label: 'CODEX-5.3', short: 'CODEX-5.3' },
+    { key: 'gpt_5_3_codex_spark', label: 'CODEX-5.3-Spark', short: 'Spark' },
     { key: 'gpt_5_2_codex', label: 'GPT-5.2-Codex', short: 'GPT-5.2' },
     // Cursor
     { key: 'cursor_composer', label: 'Cursor Composer', short: 'Composer' },
@@ -576,7 +576,7 @@ function FileWatcherCard() {
                                     </div>
                                 </div>
                                 {wp?.path && !isEditing && (
-                                    <p className="text-[11px] text-muted-foreground font-mono truncate">{wp.path}</p>
+                                    <p className="text-[11px] text-green-600 dark:text-green-400 font-mono truncate">{wp.path}</p>
                                 )}
                                 {isEditing && (
                                     <div className="flex items-center gap-2">

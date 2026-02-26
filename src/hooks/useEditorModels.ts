@@ -11,11 +11,11 @@ const FIXED_EDITOR_MODELS: Record<EditorType, AIModel[]> = {
         'claude_opus_4_6', 'claude_sonnet_4_6',
         'gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex',
         'gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'gemini_3_deep_think',
-        'grok_code', 'kimi_2_5', 'cursor_composer'
+        'cursor_composer'
     ],
     claude_code: ['claude_sonnet_4_6', 'claude_opus_4_6'],
     codex: ['gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex'],
-    antigravity: ['gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'claude_sonnet_4_6', 'claude_opus_4_6', 'grok_code', 'kimi_2_5'],
+    antigravity: ['gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'claude_sonnet_4_6', 'claude_opus_4_6'],
 }
 
 export interface EditorModelEntry {

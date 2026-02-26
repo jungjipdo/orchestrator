@@ -1,4 +1,4 @@
-// ============================================
+// ==========================================
 // OrchestrationView — 에디터 등록 + AI Task Analyzer
 // GitHub 프로젝트 연동 + Gemini API + work_items 저장
 // ============================================
@@ -34,6 +34,7 @@ import {
     Loader2,
     Clock,
     AlertTriangle,
+    ChevronDown,
 } from 'lucide-react'
 
 // ─── 에디터 설정 ───
@@ -52,7 +53,7 @@ const EDITORS: EditorConfig[] = [
             'claude_opus_4_6', 'claude_sonnet_4_6',
             'gpt_5_3_codex', 'gpt_5_3_codex_spark', 'gpt_5_2_codex',
             'gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'gemini_3_deep_think',
-            'grok_code', 'kimi_2_5', 'cursor_composer'
+            'cursor_composer'
         ]
     },
     {
@@ -65,7 +66,7 @@ const EDITORS: EditorConfig[] = [
     },
     {
         type: 'antigravity', label: 'Antigravity', icon: '/Antigravity.png', enabled: true,
-        supportedModels: ['gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'claude_sonnet_4_6', 'claude_opus_4_6', 'grok_code', 'kimi_2_5']
+        supportedModels: ['gemini_3_1_pro', 'gemini_3_pro', 'gemini_3_flash', 'claude_sonnet_4_6', 'claude_opus_4_6']
     }
 ]
 
@@ -73,8 +74,8 @@ const EDITORS: EditorConfig[] = [
 const MODEL_CONFIG: Record<AIModel, { label: string; color: string }> = {
     claude_opus_4_6: { label: 'Claude Opus 4.6', color: 'bg-orange-500/10 text-orange-600 border-orange-200' },
     claude_sonnet_4_6: { label: 'Claude Sonnet 4.6', color: 'bg-amber-500/10 text-amber-600 border-amber-200' },
-    gpt_5_3_codex: { label: 'GPT-5.3-Codex', color: 'bg-green-500/10 text-green-600 border-green-200' },
-    gpt_5_3_codex_spark: { label: 'GPT-5.3-Spark', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-200' },
+    gpt_5_3_codex: { label: 'CODEX-5.3', color: 'bg-green-500/10 text-green-600 border-green-200' },
+    gpt_5_3_codex_spark: { label: 'CODEX-5.3-Spark', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-200' },
     gpt_5_2_codex: { label: 'GPT-5.2-Codex', color: 'bg-lime-500/10 text-lime-600 border-lime-200' },
     cursor_composer: { label: 'Cursor Composer', color: 'bg-violet-500/10 text-violet-600 border-violet-200' },
     gemini_3_1_pro: { label: 'Gemini 3.1 Pro', color: 'bg-blue-600/10 text-blue-700 border-blue-300' },
@@ -83,6 +84,55 @@ const MODEL_CONFIG: Record<AIModel, { label: string; color: string }> = {
     gemini_3_deep_think: { label: 'Gemini 3 Deep Think', color: 'bg-purple-500/10 text-purple-600 border-purple-200' },
     grok_code: { label: 'Grok Code', color: 'bg-zinc-500/10 text-zinc-600 border-zinc-200' },
     kimi_2_5: { label: 'Kimi 2.5', color: 'bg-rose-500/10 text-rose-600 border-rose-200' },
+}
+
+// ─── 프로젝트 선택: Radix Select (Portal 기반 — overflow 무관) ───
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import type { Project } from '../../lib/supabase/projects'
+
+interface ProjectDropdownProps {
+    projects: Project[]
+    selectedId: string
+    onSelect: (id: string) => void
+    contextLoading: boolean
+    hasContext: boolean
+}
+
+function ProjectDropdown({ projects, selectedId, onSelect, contextLoading, hasContext }: ProjectDropdownProps) {
+    return (
+        <div className="flex items-center gap-3 px-4 py-3 border-b bg-muted/30">
+            <span className="text-xs font-medium text-muted-foreground flex-shrink-0">프로젝트</span>
+            <Select value={selectedId || undefined} onValueChange={onSelect}>
+                <SelectTrigger className="flex-1 border-0 bg-transparent shadow-none h-auto p-0 text-sm font-medium">
+                    <SelectValue placeholder="프로젝트를 선택하세요" />
+                </SelectTrigger>
+                <SelectContent>
+                    {projects.length === 0 ? (
+                        <div className="px-4 py-3 text-xs text-muted-foreground">등록된 프로젝트 없음</div>
+                    ) : (
+                        projects.map(p => (
+                            <SelectItem key={p.id} value={p.id}>
+                                <span className="flex items-center gap-2">
+                                    {p.repo_name}
+                                    {p.is_private && (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-500">private</span>
+                                    )}
+                                </span>
+                            </SelectItem>
+                        ))
+                    )}
+                </SelectContent>
+            </Select>
+            {contextLoading && (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground flex-shrink-0" />
+            )}
+            {hasContext && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 font-medium flex-shrink-0">
+                    컨텍스트 로드됨
+                </span>
+            )}
+        </div>
+    )
 }
 
 // ─── 분해 작업 타입 ───
@@ -478,76 +528,75 @@ export function OrchestrationView({ onNavigateToPlan }: { onNavigateToPlan?: () 
                         AI Task Analyzer
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-5">
-                    {/* 프로젝트 선택 */}
-                    <select
-                        value={selectedProjectId}
-                        onChange={e => setSelectedProjectId(e.target.value)}
-                        className="w-full px-4 py-3 border rounded-lg bg-background text-sm"
-                    >
-                        <option value="">프로젝트 선택</option>
-                        {projects.map(p => (
-                            <option key={p.id} value={p.id}>{p.repo_name}</option>
-                        ))}
-                    </select>
+                <CardContent className="space-y-0">
+                    {/* 프로젝트 선택 + 프롬프트 + 버튼 — 통합 컨테이너 */}
+                    <div className="rounded-xl border bg-muted/20">
+                        {/* 프로젝트 선택 바 — 커스텀 드롭다운 */}
+                        <ProjectDropdown
+                            projects={projects}
+                            selectedId={selectedProjectId}
+                            onSelect={setSelectedProjectId}
+                            contextLoading={contextLoading}
+                            hasContext={!!projectContext && !contextLoading}
+                        />
 
-                    {/* 프로젝트 컨텍스트 상태 */}
-                    {contextLoading && (
-                        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            README + 커밋 내역 로딩 중...
-                        </p>
-                    )}
-                    {projectContext && !contextLoading && (
-                        <p className="text-xs text-green-600">
-                            프로젝트 컨텍스트 로드 완료 (커밋 {projectContext.recentCommits.length}개{projectContext.readme ? ' + README' : ''}{projectContext.openIssues && projectContext.openIssues.length > 0 ? ` + 이슈 ${projectContext.openIssues.length}개` : ''})
-                        </p>
-                    )}
+                        {/* 프롬프트 입력 영역 */}
+                        <div className="relative">
+                            <textarea
+                                placeholder={"무엇을 해야 하나요?\n예: OAuth 인증 구현 + 프론트 연동 + DB 마이그레이션"}
+                                value={taskInput}
+                                onChange={e => setTaskInput(e.target.value)}
+                                rows={3}
+                                className="w-full px-4 py-4 bg-transparent text-sm resize-none outline-none placeholder:text-muted-foreground/40"
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                        if (!taskInput.trim() || analyzing || !selectedProjectId) return
+                                        runGeminiAnalysis()
+                                    }
+                                }}
+                            />
 
-                    {/* 자연어 입력 */}
-                    <textarea
-                        placeholder="무엇을 해야 하나요? 자연어로 입력하세요.&#10;예: OAuth 인증 구현하고 프론트에 연동, DB 마이그레이션까지"
-                        value={taskInput}
-                        onChange={e => setTaskInput(e.target.value)}
-                        rows={3}
-                        className="w-full px-4 py-3 border rounded-lg bg-background text-sm resize-none"
-                        onKeyDown={e => {
-                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                                runGeminiAnalysis()
-                            }
-                        }}
-                    />
-
-                    {/* 액션 버튼 */}
-                    <div className="flex gap-3">
-                        <Button
-                            onClick={runGeminiAnalysis}
-                            disabled={!taskInput.trim() || analyzing}
-                            className="flex-1 h-12 text-base"
-                        >
-                            {analyzing ? (
-                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            ) : (
-                                <Send className="w-5 h-5 mr-2" />
-                            )}
-                            {analyzing ? 'Gemini 분석 중...' : 'AI 분석 (⌘+Enter)'}
-                        </Button>
-                        <Button variant="outline" onClick={startManual} className="h-12 text-base px-6">
-                            <Pencil className="w-5 h-5 mr-2" />
-                            직접 입력
-                        </Button>
+                            {/* 하단 액션 바 */}
+                            <div className="flex min-w-0 items-center justify-between gap-2 px-4 pb-3">
+                                <button
+                                    type="button"
+                                    onClick={startManual}
+                                    className="shrink-0 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                    <Pencil className="w-3.5 h-3.5 inline mr-1" />
+                                    직접 입력
+                                </button>
+                                <Button
+                                    onClick={runGeminiAnalysis}
+                                    disabled={!taskInput.trim() || analyzing || !selectedProjectId}
+                                    size="sm"
+                                    className="h-8 min-w-[112px] max-w-[220px] rounded-lg px-3 text-xs leading-none"
+                                >
+                                    <span className="inline-flex shrink-0 items-center justify-center">
+                                        {analyzing ? (
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        ) : (
+                                            <Send className="h-3.5 w-3.5" />
+                                        )}
+                                    </span>
+                                    <span className="truncate">
+                                        {analyzing ? '분석 중...' : !selectedProjectId ? '프로젝트 선택 필요' : 'AI 분석 ⌘↵'}
+                                    </span>
+                                </Button>
+                            </div>
+                        </div>
                     </div>
 
                     {/* 에러 */}
                     {aiError && (
-                        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                        <div className="p-4 mt-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm dark:bg-red-950/30 dark:border-red-900 dark:text-red-400">
                             {aiError}
                         </div>
                     )}
 
                     {/* 저장 성공 */}
                     {saveSuccess && saveMessage && (
-                        <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center gap-2">
+                        <div className="p-4 mt-4 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center gap-2 dark:bg-green-950/30 dark:border-green-900 dark:text-green-400">
                             <CheckCircle className="w-5 h-5 shrink-0" />
                             {saveMessage}
                         </div>
@@ -655,28 +704,36 @@ export function OrchestrationView({ onNavigateToPlan }: { onNavigateToPlan?: () 
                                                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                                         <div>
                                                             <label className="text-xs font-medium text-muted-foreground block mb-1.5">유형 (표시색)</label>
-                                                            <select
-                                                                value={task.task_type}
-                                                                onChange={e => changeTaskType(idx, e.target.value as TaskType)}
-                                                                className="w-full px-3 py-2 border rounded-md text-sm bg-background font-medium"
-                                                            >
-                                                                {TASK_TYPES.map(tt => (
-                                                                    <option key={tt.type} value={tt.type}>{tt.label}</option>
-                                                                ))}
-                                                            </select>
+                                                            <div className="relative">
+                                                                <select
+                                                                    value={task.task_type}
+                                                                    onChange={e => changeTaskType(idx, e.target.value as TaskType)}
+                                                                    className="w-full px-3 py-2 border rounded-md text-sm bg-background font-medium appearance-none cursor-pointer pr-8"
+                                                                    style={{ fontFamily: 'inherit' }}
+                                                                >
+                                                                    {TASK_TYPES.map(tt => (
+                                                                        <option key={tt.type} value={tt.type} style={{ fontFamily: 'inherit' }}>{tt.label}</option>
+                                                                    ))}
+                                                                </select>
+                                                                <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                                                            </div>
                                                         </div>
 
                                                         <div>
                                                             <label className="text-xs font-medium text-muted-foreground block mb-1.5">할당 모델</label>
-                                                            <select
-                                                                value={task.suggested_model}
-                                                                onChange={e => updateTask(idx, { suggested_model: e.target.value as AIModel })}
-                                                                className="w-full px-3 py-2 border rounded-md text-sm bg-background font-medium"
-                                                            >
-                                                                {availableModels.map(m => (
-                                                                    <option key={m} value={m}>{MODEL_CONFIG[m]?.label ?? m}</option>
-                                                                ))}
-                                                            </select>
+                                                            <div className="relative">
+                                                                <select
+                                                                    value={task.suggested_model}
+                                                                    onChange={e => updateTask(idx, { suggested_model: e.target.value as AIModel })}
+                                                                    className="w-full px-3 py-2 border rounded-md text-sm bg-background font-medium appearance-none cursor-pointer pr-8"
+                                                                    style={{ fontFamily: 'inherit' }}
+                                                                >
+                                                                    {availableModels.map(m => (
+                                                                        <option key={m} value={m} style={{ fontFamily: 'inherit' }}>{MODEL_CONFIG[m]?.label ?? m}</option>
+                                                                    ))}
+                                                                </select>
+                                                                <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                                                            </div>
                                                         </div>
 
                                                         <div>

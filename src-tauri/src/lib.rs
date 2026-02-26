@@ -8,7 +8,7 @@ mod local_db;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -23,6 +23,8 @@ struct AppState {
     watching_enabled: Mutex<bool>,
     /// 로컬 SQLite DB
     db: local_db::LocalDb,
+    /// Supabase 이벤트 전송 클라이언트
+    sync_client: Option<Arc<sync_client::SyncClient>>,
 }
 
 #[tauri::command]
@@ -75,7 +77,8 @@ async fn add_watch_project(
 
     // 감시 활성화 상태면 watcher 시작
     if enabled {
-        let watcher_state = watcher::start_watcher(project_path, app.clone())?;
+        let sc = state.sync_client.clone();
+        let watcher_state = watcher::start_watcher(project_path, app.clone(), sc)?;
         let mut watchers = state.watchers.lock().map_err(|e| e.to_string())?;
         watchers.insert(repo_full_name.clone(), watcher_state);
     }
@@ -130,7 +133,8 @@ async fn toggle_watch_all(app: tauri::AppHandle) -> Result<serde_json::Value, St
         let mut watchers = state.watchers.lock().map_err(|e| e.to_string())?;
 
         for (name, path) in paths.iter() {
-            match watcher::start_watcher(path.clone(), app.clone()) {
+            let sc = state.sync_client.clone();
+            match watcher::start_watcher(path.clone(), app.clone(), sc) {
                 Ok(ws) => {
                     watchers.insert(name.clone(), ws);
                     log::info!("👁 {} 감시 시작", name);
@@ -197,51 +201,113 @@ async fn get_offline_changes(app: tauri::AppHandle) -> Result<serde_json::Value,
 #[tauri::command]
 async fn resolve_local_paths(repo_urls: Vec<String>) -> Result<serde_json::Value, String> {
     use std::process::Command;
+    use std::path::Path;
 
-    // 홈 디렉토리 탐색 기반
     let home = dirs::home_dir().ok_or("홈 디렉토리를 찾을 수 없음")?;
+    let home_str = home.to_string_lossy().to_string();
 
-    // 빠른 탐색: find로 .git 디렉토리 검색 (depth 5)
-    let find_output = Command::new("find")
-        .args([
-            home.to_str().unwrap_or("~"),
-            "-maxdepth", "5",
+    // ─── macOS 코드 미관련 디렉토리 (탐색 제외) ───
+    // 기본 시스템 폴더 + 미디어 폴더를 제외하고 나머지만 탐색
+    let exclude_dirs: std::collections::HashSet<&str> = [
+        "Library", "Applications", "Movies", "Music", "Pictures",
+        "Public", ".Trash", ".cache", ".local", ".cargo", ".rustup",
+        ".npm", ".nvm", ".pyenv", ".rbenv", ".config",
+    ].iter().copied().collect();
+
+    // find 공통 옵션 (경로 내부 제외)
+    let find_excludes = vec![
+        "-not", "-path", "*/node_modules/*",
+        "-not", "-path", "*/.Trash/*",
+        "-not", "-path", "*/Library/*",
+        "-not", "-path", "*/.gemini/*",
+        "-not", "-path", "*/target/*",
+        "-not", "-path", "*/.git/modules/*",
+        "-not", "-path", "*/.cache/*",
+    ];
+
+    // ─── 1단계: 홈 디렉토리 자식 폴더 동적 열거 ───
+    let home_children: Vec<String> = match std::fs::read_dir(&home) {
+        Ok(entries) => entries
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+            .filter(|e| {
+                let name = e.file_name().to_string_lossy().to_string();
+                !name.starts_with('.') && !exclude_dirs.contains(name.as_str())
+            })
+            .map(|e| e.path().to_string_lossy().to_string())
+            .collect(),
+        Err(_) => vec![],
+    };
+
+    log::info!("🔍 탐색 대상 디렉토리 {}개: {:?}",
+        home_children.len(),
+        home_children.iter().map(|p| p.replace(&home_str, "~")).collect::<Vec<_>>()
+    );
+
+    // ─── 2단계: 각 디렉토리별 find 실행 (depth 6) ───
+    let mut all_git_dirs: Vec<String> = Vec::new();
+
+    for search_dir in &home_children {
+        let mut args = vec![
+            search_dir.as_str(),
+            "-maxdepth", "6",
             "-name", ".git",
             "-type", "d",
-            "-not", "-path", "*/node_modules/*",
-            "-not", "-path", "*/.Trash/*",
-            "-not", "-path", "*/Library/*",
-        ])
-        .output()
-        .map_err(|e| format!("find 실행 실패: {}", e))?;
+        ];
+        args.extend_from_slice(&find_excludes);
 
-    let git_dirs = String::from_utf8_lossy(&find_output.stdout);
-    let mut result: HashMap<String, String> = HashMap::new();
+        let output = Command::new("find")
+            .args(&args)
+            .output();
 
-    // URL 정규화 (비교용)
-    let normalized_urls: Vec<(String, String)> = repo_urls
+        if let Ok(o) = output {
+            let stdout = String::from_utf8_lossy(&o.stdout);
+            for line in stdout.lines() {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() {
+                    all_git_dirs.push(trimmed.to_string());
+                }
+            }
+        }
+    }
+
+    // 홈 디렉토리 직하 .git도 체크 (드문 케이스)
+    let home_git = home.join(".git");
+    if home_git.exists() {
+        all_git_dirs.push(home_git.to_string_lossy().to_string());
+    }
+
+    log::info!("🔍 총 {}개 git 저장소 발견", all_git_dirs.len());
+
+    // ─── URL 정규화 ───
+    let normalized_urls: Vec<(String, String, String)> = repo_urls
         .iter()
         .map(|url| {
             let normalized = url
                 .trim_end_matches(".git")
                 .replace("git@github.com:", "https://github.com/")
                 .to_lowercase();
-            (url.clone(), normalized)
+            
+            // 원본에서 https://github.com/ 부분만 제거하여 repo_full_name 추출 (대소문자 유지)
+            let original_repo_name = url
+                .trim_end_matches(".git")
+                .replace("git@github.com:", "https://github.com/")
+                .replace("https://github.com/", "");
+                
+            (url.clone(), normalized, original_repo_name)
         })
         .collect();
 
-    for git_dir in git_dirs.lines() {
-        let git_dir = git_dir.trim();
-        if git_dir.is_empty() {
-            continue;
-        }
+    let mut result: HashMap<String, String> = HashMap::new();
+    let mut timestamps: HashMap<String, i64> = HashMap::new();
 
-        let project_dir = match std::path::Path::new(git_dir).parent() {
+    // ─── 매칭 ───
+    for git_dir in &all_git_dirs {
+        let project_dir = match Path::new(git_dir).parent() {
             Some(p) => p,
             None => continue,
         };
 
-        // git remote get-url origin 실행
         let remote = Command::new("git")
             .args(["remote", "get-url", "origin"])
             .current_dir(project_dir)
@@ -259,20 +325,36 @@ async fn resolve_local_paths(repo_urls: Vec<String>) -> Result<serde_json::Value
             .replace("git@github.com:", "https://github.com/")
             .to_lowercase();
 
-        for (original_url, normalized) in &normalized_urls {
+        for (_original_url, normalized, original_repo_name) in &normalized_urls {
             if normalized_remote == *normalized {
-                // repo_full_name 추출: https://github.com/owner/repo → owner/repo
-                let repo_full_name = normalized
-                    .replace("https://github.com/", "")
-                    .to_string();
+                let repo_full_name = original_repo_name.clone();
 
-                // 이미 찾은 경우 더 짧은 경로(루트에 가까운) 우선
-                if let Some(existing) = result.get(&repo_full_name) {
-                    if project_dir.to_string_lossy().len() < existing.len() {
-                        result.insert(repo_full_name, project_dir.to_string_lossy().to_string());
-                    }
-                } else {
-                    result.insert(repo_full_name, project_dir.to_string_lossy().to_string());
+                // 최근 커밋 타임스탬프 (중복 경로 → 최근 작업한 것 우선)
+                let last_commit_ts = Command::new("git")
+                    .args(["log", "-1", "--format=%ct"])
+                    .current_dir(project_dir)
+                    .output()
+                    .ok()
+                    .and_then(|o| {
+                        if o.status.success() {
+                            String::from_utf8_lossy(&o.stdout)
+                                .trim()
+                                .parse::<i64>()
+                                .ok()
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(0);
+
+                let should_replace = match timestamps.get(&repo_full_name) {
+                    Some(&existing_ts) => last_commit_ts > existing_ts,
+                    None => true,
+                };
+
+                if should_replace {
+                    result.insert(repo_full_name.clone(), project_dir.to_string_lossy().to_string());
+                    timestamps.insert(repo_full_name, last_commit_ts);
                 }
                 break;
             }
@@ -340,6 +422,21 @@ async fn db_upsert_project(
 ) -> Result<String, String> {
     let state = app.state::<AppState>();
     state.db.upsert_project(&project).map_err(|e| e.to_string())?;
+    Ok("ok".to_string())
+}
+
+#[tauri::command]
+async fn db_delete_project(
+    app: tauri::AppHandle,
+    id: String,
+) -> Result<String, String> {
+    let state = app.state::<AppState>();
+    log::info!("🗑 프로젝트 삭제 요청: {}", id);
+    state.db.delete_project(&id).map_err(|e| {
+        log::error!("❌ 프로젝트 삭제 실패: {} - {}", id, e);
+        e.to_string()
+    })?;
+    log::info!("✅ 프로젝트 삭제 완료: {}", id);
     Ok("ok".to_string())
 }
 
@@ -416,11 +513,57 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
-        .manage(AppState {
-            watchers: Mutex::new(HashMap::new()),
-            project_paths: Mutex::new(initial_paths),
-            watching_enabled: Mutex::new(true),
-            db,
+        .manage({
+            // Supabase 설정 로드 → SyncClient 생성
+            // 1) 환경변수 직접 체크 2) CWD/.env.local 3) exe 부모 디렉토리
+            let env_url = std::env::var("VITE_SUPABASE_URL").ok();
+            let env_key = std::env::var("VITE_SUPABASE_ANON_KEY").ok();
+
+            let sync = if let (Some(url), Some(key)) = (env_url, env_key) {
+                log::info!("🔗 SyncClient (환경변수): {}", url);
+                Some(Arc::new(sync_client::SyncClient::new(
+                    sync_client::SupabaseConfig { url, anon_key: key },
+                    std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+                )))
+            } else {
+                // .env.local / .env 파일 탐색
+                let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+                log::info!("🔍 SyncClient .env 탐색 CWD: {:?}", cwd);
+                
+                // CWD에서 먼저 찾고, 없으면 exe 디렉토리에서 찾기
+                let result = sync_client::load_supabase_config(&cwd)
+                    .or_else(|| {
+                        // Tauri 앱의 exe 디렉토리 상위 (src-tauri/target/debug → 프로젝트 루트)
+                        if let Ok(exe_path) = std::env::current_exe() {
+                            if let Some(project_root) = exe_path.parent()
+                                .and_then(|p| p.parent())
+                                .and_then(|p| p.parent())
+                                .and_then(|p| p.parent()) {
+                                log::info!("🔍 SyncClient .env fallback: {:?}", project_root);
+                                return sync_client::load_supabase_config(project_root);
+                            }
+                        }
+                        None
+                    });
+                
+                result.map(|config| {
+                    log::info!("🔗 SyncClient (.env): {}", config.url);
+                    Arc::new(sync_client::SyncClient::new(config, cwd.clone()))
+                })
+            };
+
+            if sync.is_some() {
+                log::info!("✅ SyncClient 초기화 성공 → Supabase 이벤트 전송 활성화");
+            } else {
+                log::warn!("⚠ SyncClient 초기화 실패 → .env.local에 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY 필요");
+            }
+            AppState {
+                watchers: Mutex::new(HashMap::new()),
+                project_paths: Mutex::new(initial_paths),
+                watching_enabled: Mutex::new(true),
+                db,
+                sync_client: sync.clone(),
+            }
         })
         .invoke_handler(tauri::generate_handler![
             start_oauth_server,
@@ -436,6 +579,7 @@ pub fn run() {
             db_upsert_editor_models,
             db_get_projects,
             db_upsert_project,
+            db_delete_project,
             db_get_preference,
             db_set_preference,
             db_get_pending_sync,
@@ -484,7 +628,8 @@ pub fn run() {
                                 if let Ok(paths) = state.project_paths.lock() {
                                     if let Ok(mut watchers) = state.watchers.lock() {
                                         for (name, path) in paths.iter() {
-                                            match watcher::start_watcher(path.clone(), app.clone()) {
+                                            let sc = state.sync_client.clone();
+                                            match watcher::start_watcher(path.clone(), app.clone(), sc) {
                                                 Ok(ws) => {
                                                     watchers.insert(name.clone(), ws);
                                                     log::info!("👁 {} 감시 시작", name);
@@ -530,7 +675,17 @@ pub fn run() {
                     .build(),
             )?;
 
+            // ─── 알림 플러그인 ───
+            app.handle().plugin(tauri_plugin_notification::init())?;
+
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // 창 닫기 시 트레이에 상주 (앱 종료 대신 숨김)
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.hide();
+                api.prevent_close();
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -5,8 +5,9 @@
 
 use crate::contract::ContractEnforcer;
 use crate::session::{read_session, update_session_stats};
+use crate::sync_client::SyncClient;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -69,6 +70,7 @@ fn event_kind_to_str(kind: &EventKind) -> Option<&'static str> {
 pub fn start_watcher(
     project_path: PathBuf,
     app_handle: tauri::AppHandle,
+    sync_client: Option<Arc<SyncClient>>,
 ) -> Result<WatcherState, String> {
     let running = Arc::new(AtomicBool::new(true));
     let files_changed = Arc::new(AtomicU64::new(0));
@@ -92,10 +94,9 @@ pub fn start_watcher(
         commits_detected.store(s.commits_detected, Ordering::SeqCst);
     }
 
-    // 디바운스용 버퍼
-    let debounce_buffer: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
-    let _debounce_timer: Arc<Mutex<Option<std::thread::JoinHandle<()>>>> =
-        Arc::new(Mutex::new(None));
+    // 디바운스용 버퍼 (경로 -> 마지막 이벤트 시간)
+    let debounce_map: Arc<Mutex<HashMap<String, std::time::Instant>>> = 
+        Arc::new(Mutex::new(HashMap::new()));
 
     let project_root = project_path.clone();
     let project_root_for_stats = project_path.clone();
@@ -103,6 +104,8 @@ pub fn start_watcher(
     let enforcer_clone = enforcer.clone();
     let files_changed_clone = files_changed.clone();
     let running_clone = running.clone();
+    let sync_clone = sync_client.clone();
+    let debounce_map_clone = debounce_map.clone();
 
     let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
         if !running_clone.load(Ordering::SeqCst) {
@@ -111,12 +114,21 @@ pub fn start_watcher(
 
         let event = match res {
             Ok(e) => e,
-            Err(_) => return,
+            Err(e) => {
+                log::warn!("🔴 Watcher 에러: {:?}", e);
+                return;
+            }
         };
+
+        // 원시 이벤트 로그 (모든 이벤트 확인용)
+        log::info!("🔵 RAW 이벤트: {:?} → {:?}", event.kind, event.paths);
 
         let event_type = match event_kind_to_str(&event.kind) {
             Some(t) => t,
-            None => return,
+            None => {
+                log::info!("🟡 무시된 이벤트 종류: {:?}", event.kind);
+                return;
+            }
         };
 
         for path in &event.paths {
@@ -151,6 +163,18 @@ pub fn start_watcher(
                 continue;
             }
 
+            // 디바운스 처리 (1초 이내 동일 파일 변경 무시)
+            {
+                let mut map = debounce_map_clone.lock().unwrap();
+                let now = std::time::Instant::now();
+                if let Some(last_time) = map.get(&relative) {
+                    if now.duration_since(*last_time).as_millis() < 1000 {
+                        continue;
+                    }
+                }
+                map.insert(relative.clone(), now);
+            }
+
             let count = files_changed_clone.fetch_add(1, Ordering::SeqCst) + 1;
 
             // 계약 위반 체크
@@ -164,7 +188,33 @@ pub fn start_watcher(
                 violation: violation_msg,
             };
 
-            let _ = app.emit("orchx:file-change", &change_event);
+            log::info!("📝 파일변경 감지: {} ({})", change_event.path, change_event.event_type);
+
+            match app.emit("orchx:file-change", &change_event) {
+                Ok(_) => log::info!("  ✅ Tauri emit 성공: orchx:file-change"),
+                Err(e) => log::warn!("  ❌ Tauri emit 실패: {}", e),
+            }
+
+            // Supabase cli_events에 이벤트 전송 (비동기)
+            if let Some(ref client) = sync_clone {
+                let client = client.clone();
+                let rel = change_event.path.clone();
+                let viol = change_event.violation.clone();
+                log::info!("  📤 Supabase 전송 시도: {}", rel);
+                tauri::async_runtime::spawn(async move {
+                    let payload = serde_json::json!({
+                        "file": rel,
+                        "event_type": "change",
+                        "violation": viol,
+                    });
+                    match client.send_event("file.changed", payload).await {
+                        Ok(_) => log::info!("  ✅ Supabase 전송 성공"),
+                        Err(e) => log::warn!("  ❌ Supabase 전송 실패: {}", e),
+                    }
+                });
+            } else {
+                log::warn!("  ⚠ SyncClient 없음 → Supabase 전송 스킵");
+            }
 
             // 세션 업데이트
             update_session_stats(
@@ -172,13 +222,6 @@ pub fn start_watcher(
                 count,
                 commits_detected.load(Ordering::SeqCst),
             );
-
-            // 디바운스 버퍼에 추가
-            if event_type != "unlink" {
-                if let Ok(mut buf) = debounce_buffer.lock() {
-                    buf.insert(relative);
-                }
-            }
         }
     })
     .map_err(|e| format!("Watcher 생성 실패: {}", e))?;

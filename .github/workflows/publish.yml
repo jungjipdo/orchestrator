@@ -10,6 +10,15 @@ permissions:
 jobs:
   publish:
     runs-on: macos-latest
+    # Vite 빌드에 필요한 환경변수를 job 레벨에서 설정
+    # tauri-action → tauri build → beforeBuildCommand(npm run build) 순서로
+    # 자식 프로세스에 전달되어야 하므로 step이 아닌 job 레벨에 배치
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      VITE_GITHUB_CLIENT_ID: ${{ secrets.VITE_GITHUB_CLIENT_ID }}
+      VITE_GITHUB_APP_SLUG: ${{ secrets.VITE_GITHUB_APP_SLUG }}
+      VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
 
     steps:
       - name: Checkout
@@ -32,18 +41,24 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Verify env vars
+        run: |
+          echo "VITE_SUPABASE_URL length: ${#VITE_SUPABASE_URL}"
+          echo "VITE_SUPABASE_ANON_KEY length: ${#VITE_SUPABASE_ANON_KEY}"
+          echo "VITE_GITHUB_CLIENT_ID length: ${#VITE_GITHUB_CLIENT_ID}"
+          echo "VITE_GITHUB_APP_SLUG length: ${#VITE_GITHUB_APP_SLUG}"
+          echo "VITE_GEMINI_API_KEY length: ${#VITE_GEMINI_API_KEY}"
+          if [ -z "$VITE_SUPABASE_URL" ]; then
+            echo "::error::VITE_SUPABASE_URL is empty! Check GitHub Secrets."
+            exit 1
+          fi
+
       - name: Build and release (Tauri)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Vite 프론트엔드 환경변수 (빌드 시 번들에 포함됨)
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_GITHUB_CLIENT_ID: ${{ secrets.VITE_GITHUB_CLIENT_ID }}
-          VITE_GITHUB_APP_SLUG: ${{ secrets.VITE_GITHUB_APP_SLUG }}
-          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
         with:
           tagName: v__VERSION__
           releaseName: 'Orchestrator v__VERSION__'
@@ -55,3 +70,4 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: --bundles dmg
+

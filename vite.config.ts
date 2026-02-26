@@ -4,12 +4,16 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
+// Tauri 빌드 시 TAURI_ENV_PLATFORM 환경변수가 설정됨
+const isTauri = !!process.env.TAURI_ENV_PLATFORM
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    VitePWA({
+    // Tauri 빌드에서는 PWA 비활성화 (tauri:// 프로토콜에서 SW 등록 불가)
+    ...(!isTauri ? [VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
@@ -54,7 +58,7 @@ export default defineConfig({
           },
         ],
       },
-    }),
+    })] : []),
   ],
   resolve: {
     alias: {
@@ -66,3 +70,4 @@ export default defineConfig({
     strictPort: true,
   },
 })
+

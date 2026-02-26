@@ -46,13 +46,14 @@ export function ConsentModal({ open, onComplete }: ConsentModalProps) {
                     <div className="px-6 space-y-3">
                         {/* 필수: 서비스 이용약관 — 체크박스 */}
                         <label
-                            className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${termsAccepted ? 'border-foreground/20 bg-muted/30' : 'border-border'
+                            tabIndex={0}
+                            className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${termsAccepted ? 'border-foreground bg-foreground/5' : 'border-foreground/30 bg-muted/40'
                                 }`}
                         >
                             <div
                                 className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${termsAccepted
-                                        ? 'bg-foreground border-foreground'
-                                        : 'border-muted-foreground/40'
+                                    ? 'bg-foreground border-foreground'
+                                    : 'border-muted-foreground/40'
                                     }`}
                                 onClick={() => setTermsAccepted(!termsAccepted)}
                             >
@@ -74,7 +75,7 @@ export function ConsentModal({ open, onComplete }: ConsentModalProps) {
                         <div className="h-px bg-border" />
 
                         {/* 선택: 모델 개선 데이터 수집 */}
-                        <div className="flex items-start justify-between p-3 rounded-lg border">
+                        <div className="flex items-start justify-between p-3 rounded-lg border border-border/60 bg-transparent">
                             <div className="flex-1 pr-3">
                                 <div className="flex items-center gap-2">
                                     <span className="text-sm font-medium">모델 개선 데이터 수집</span>
@@ -83,11 +84,9 @@ export function ConsentModal({ open, onComplete }: ConsentModalProps) {
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                     작업 패턴을 익명화하여 수집합니다.
                                 </p>
-                                {!dataCollection && (
-                                    <p className="text-xs text-muted-foreground/70 mt-1">
-                                        거부 시 AI 추천이 개인 이력만 기반으로 작동합니다.
-                                    </p>
-                                )}
+                                <p className="text-xs text-muted-foreground/60 mt-1">
+                                    거부 시 AI 추천이 개인 이력만 기반으로 작동합니다.
+                                </p>
                             </div>
                             <button
                                 type="button"
@@ -101,7 +100,7 @@ export function ConsentModal({ open, onComplete }: ConsentModalProps) {
                         </div>
 
                         {/* 선택: 멀티 디바이스 동기화 */}
-                        <div className="flex items-start justify-between p-3 rounded-lg border">
+                        <div className="flex items-start justify-between p-3 rounded-lg border border-border/60 bg-transparent">
                             <div className="flex-1 pr-3">
                                 <div className="flex items-center gap-2">
                                     <span className="text-sm font-medium">멀티 디바이스 동기화</span>
@@ -110,11 +109,9 @@ export function ConsentModal({ open, onComplete }: ConsentModalProps) {
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                     여러 기기에서 데이터를 동기화합니다.
                                 </p>
-                                {!syncConsent && (
-                                    <p className="text-xs text-muted-foreground/70 mt-1">
-                                        거부 시 이 기기에서만 데이터가 저장됩니다.
-                                    </p>
-                                )}
+                                <p className="text-xs text-muted-foreground/60 mt-1">
+                                    거부 시 이 기기에서만 데이터가 저장됩니다.
+                                </p>
                             </div>
                             <button
                                 type="button"

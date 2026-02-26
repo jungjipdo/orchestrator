@@ -34,6 +34,7 @@ interface TimelineItem {
     title: string
     subtitle?: string
     time?: string
+    date?: string          // monthly에서 날짜 표시용
     sortTime: number
     planId?: string        // plan 삭제용
     onClick?: () => void
@@ -94,6 +95,21 @@ function isSameMonth(a: Date, b: Date): boolean {
 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 type ViewMode = 'weekly' | 'monthly'
+
+/** 선택 날짜가 속한 주의 시작(일)~끝(토) 반환 */
+function getSelectedWeekRange(date: Date): [Date, Date] {
+    const start = new Date(date)
+    start.setDate(start.getDate() - start.getDay())
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(start)
+    end.setDate(end.getDate() + 6)
+    end.setHours(23, 59, 59, 999)
+    return [start, end]
+}
+
+function isInDateRange(target: Date, rangeStart: Date, rangeEnd: Date): boolean {
+    return target >= rangeStart && target <= rangeEnd
+}
 
 interface TimelineViewProps {
     onNavigate?: (tab: ViewType) => void
@@ -192,6 +208,16 @@ export function TimelineView({ onNavigate }: TimelineViewProps) {
         return ids
     }, [plans])
 
+    // ─── 날짜 매칭 헬퍼: weekly=하루, monthly=선택 날짜의 주 ───
+    const matchesDate = useCallback((target: Date) => {
+        if (viewMode === 'weekly') {
+            return isSameDay(target, selectedDate)
+        }
+        // monthly: 선택 날짜가 속한 주 전체
+        const [weekStart, weekEnd] = getSelectedWeekRange(selectedDate)
+        return isInDateRange(target, weekStart, weekEnd)
+    }, [viewMode, selectedDate])
+
     // ─── 통합 타임라인 아이템 생성 ───
     const timelineItems = useMemo(() => {
         const items: TimelineItem[] = []
@@ -199,41 +225,47 @@ export function TimelineView({ onNavigate }: TimelineViewProps) {
         // Fixed Events (plans와 연결된 건은 skip — plans 쪽에서 렌더링)
         fixedEvents.forEach(e => {
             if (linkedEventIds.has(e.id)) return
-            if (!isSameDay(new Date(e.start_at), selectedDate)) return
+            if (!matchesDate(new Date(e.start_at))) return
+            const eDate = new Date(e.start_at)
             items.push({
                 id: `event-${e.id}`,
                 type: 'event',
                 title: e.title,
                 subtitle: e.importance,
-                time: new Date(e.start_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                sortTime: new Date(e.start_at).getTime(),
+                time: eDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                date: eDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                sortTime: eDate.getTime(),
                 onClick: () => onNavigate?.('release-plan'),
             })
         })
 
         // Deadlines
         deadlines.forEach(d => {
-            if (!isSameDay(new Date(d.deadline_at), selectedDate)) return
+            if (!matchesDate(new Date(d.deadline_at))) return
+            const dDate = new Date(d.deadline_at)
             items.push({
                 id: `deadline-${d.id}`,
                 type: 'deadline',
                 title: d.milestone,
                 subtitle: `Risk: ${d.risk_score}%`,
-                time: new Date(d.deadline_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                sortTime: new Date(d.deadline_at).getTime(),
+                time: dDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                date: dDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                sortTime: dDate.getTime(),
             })
         })
 
         // Tasks Due
         activeItems.forEach(t => {
-            if (!t.due_at || !isSameDay(new Date(t.due_at), selectedDate)) return
+            if (!t.due_at || !matchesDate(new Date(t.due_at))) return
+            const tDate = new Date(t.due_at)
             items.push({
                 id: `task-${t.id}`,
                 type: 'task',
                 title: t.title,
                 subtitle: t.next_action || undefined,
-                time: new Date(t.due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                sortTime: new Date(t.due_at).getTime(),
+                time: tDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                date: tDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                sortTime: tDate.getTime(),
                 onClick: () => onNavigate?.('active-task'),
             })
         })
@@ -241,51 +273,59 @@ export function TimelineView({ onNavigate }: TimelineViewProps) {
         // Plans (task/event/project)
         plans.forEach(p => {
             if (p.plan_type === 'fixed') {
-                // 반복 인스턴스 처리
                 const meta = p.metadata as unknown as FixedMetadata
                 if (meta?.recurrence) {
                     const startDate = new Date(meta.start_at)
-                    const dayStart = new Date(selectedDate); dayStart.setHours(0, 0, 0, 0)
-                    const dayEnd = new Date(selectedDate); dayEnd.setHours(23, 59, 59, 999)
-                    const occurrences = generateOccurrences(meta.recurrence, startDate, { from: dayStart, to: dayEnd })
-                    if (occurrences.length > 0) {
-                        const occ = occurrences[0]
-                        const recDesc = getRecurrenceDescription(meta.recurrence)
+                    // monthly: 주 범위 / weekly: 하루 범위
+                    let rangeStart: Date, rangeEnd: Date
+                    if (viewMode === 'monthly') {
+                        [rangeStart, rangeEnd] = getSelectedWeekRange(selectedDate)
+                    } else {
+                        rangeStart = new Date(selectedDate); rangeStart.setHours(0, 0, 0, 0)
+                        rangeEnd = new Date(selectedDate); rangeEnd.setHours(23, 59, 59, 999)
+                    }
+                    const occurrences = generateOccurrences(meta.recurrence, startDate, { from: rangeStart, to: rangeEnd })
+                    occurrences.forEach(occ => {
+                        const recDesc = getRecurrenceDescription(meta.recurrence!)
                         items.push({
                             id: `fixed-${p.id}-${occ.toISOString()}`,
                             type: 'fixed',
                             title: p.title,
                             subtitle: `🔁 ${recDesc}`,
                             time: startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            date: occ.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
                             sortTime: occ.getTime(),
                             planId: p.id,
                             onClick: () => onNavigate?.('release-plan'),
                         })
-                    }
+                    })
                 } else {
-                    // 비반복 고정 일정
-                    if (!meta?.start_at || !isSameDay(new Date(meta.start_at), selectedDate)) return
+                    if (!meta?.start_at || !matchesDate(new Date(meta.start_at))) return
+                    const fixDate = new Date(meta.start_at)
                     items.push({
                         id: `fixed-${p.id}`,
                         type: 'fixed',
                         title: p.title,
                         subtitle: p.description || '고정 일정',
-                        time: new Date(meta.start_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        sortTime: new Date(meta.start_at).getTime(),
+                        time: fixDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        date: fixDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                        sortTime: fixDate.getTime(),
                         planId: p.id,
                         onClick: () => onNavigate?.('release-plan'),
                     })
                 }
                 return
             }
-            if (!p.due_at || !isSameDay(new Date(p.due_at), selectedDate)) return
+            if (!p.due_at || !matchesDate(new Date(p.due_at))) return
+            const pDate = new Date(p.due_at)
             items.push({
                 id: `plan-${p.id}`,
                 type: 'plan',
                 title: p.title,
                 subtitle: p.description || undefined,
-                time: new Date(p.due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                sortTime: new Date(p.due_at).getTime(),
+                time: pDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                date: pDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                sortTime: pDate.getTime(),
                 planId: p.id,
                 onClick: () => onNavigate?.('release-plan'),
             })
@@ -293,7 +333,7 @@ export function TimelineView({ onNavigate }: TimelineViewProps) {
 
         // 시간순 정렬
         return items.sort((a, b) => a.sortTime - b.sortTime)
-    }, [fixedEvents, deadlines, activeItems, plans, selectedDate, onNavigate])
+    }, [fixedEvents, deadlines, activeItems, plans, selectedDate, matchesDate, onNavigate, viewMode])
 
     const loading = itemsLoading || eventsLoading || deadlinesLoading || plansLoading
 
@@ -450,7 +490,13 @@ export function TimelineView({ onNavigate }: TimelineViewProps) {
 
             {/* Selected Date Details */}
             <div className="text-lg font-medium">
-                {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                {viewMode === 'monthly' ? (() => {
+                    const [ws, we] = getSelectedWeekRange(selectedDate)
+                    if (ws.getMonth() === we.getMonth()) {
+                        return `${ws.toLocaleDateString('en-US', { month: 'long' })} ${ws.getDate()} – ${we.getDate()}`
+                    }
+                    return `${ws.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${we.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                })() : selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </div>
 
             {/* ─── 통합 타임라인 (3열 그리드) ─── */}
@@ -495,8 +541,10 @@ export function TimelineView({ onNavigate }: TimelineViewProps) {
                                                     {item.subtitle && (
                                                         <div className="text-xs text-muted-foreground truncate">{item.subtitle}</div>
                                                     )}
-                                                    {item.time && (
-                                                        <div className="text-xs text-muted-foreground mt-0.5">{item.time}</div>
+                                                    {(item.time || item.date) && (
+                                                        <div className="text-xs text-muted-foreground mt-0.5">
+                                                            {viewMode === 'monthly' && item.date ? `${item.date} · ${item.time ?? ''}` : item.time}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>

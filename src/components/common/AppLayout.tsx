@@ -33,6 +33,8 @@ import { SettingsView } from '../views/SettingsView'
 import { OrchestrationView } from '../views/OrchestrationView'
 import { ConsentModal } from '../consent/ConsentModal'
 import { useConsent } from '../../hooks/useConsent'
+import { useNotifications } from '../../hooks/useNotifications'
+import { NotificationPanel } from './NotificationPanel'
 import { startSyncInterval } from '../../lib/sync/SyncService'
 
 // ─── 6탭 ViewType ───
@@ -53,6 +55,8 @@ export function AppLayout() {
     const [activeTab, setActiveTab] = useState<ViewType>('dashboard')
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const { needsOnboarding, setInitialConsent } = useConsent()
+    const { notifications, unreadCount, markAllRead, clearAll } = useNotifications()
+    const [notifOpen, setNotifOpen] = useState(false)
 
     const refresh = useCallback(() => {
         setRefreshTrigger((v) => v + 1)
@@ -157,17 +161,9 @@ export function AppLayout() {
             />
             {/* Header */}
             <header
-                data-tauri-drag-region
-                className="sticky top-0 z-50 border-b"
-                style={{
-                    background: 'var(--glass-bg)',
-                    borderColor: 'var(--glass-border)',
-                    backdropFilter: `blur(var(--glass-blur))`,
-                    WebkitBackdropFilter: `blur(var(--glass-blur))`,
-                    boxShadow: 'var(--glass-shadow)',
-                }}
+                className="sticky top-0 z-50 border-b bg-background"
             >
-                <div className="flex h-16 items-center justify-between px-6 pl-20">
+                <div className="flex h-16 items-center justify-between px-6">
                     <div className="flex items-center gap-4">
                         <Button
                             variant="ghost"
@@ -200,12 +196,29 @@ export function AppLayout() {
                         <Button variant="ghost" size="sm" onClick={toggleTheme} title={isDark ? 'Light mode' : 'Dark mode'}>
                             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                         </Button>
-                        <Button variant="ghost" size="sm" className="relative">
-                            <Bell className="w-4 h-4" />
-                            <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs">
-                                0
-                            </Badge>
-                        </Button>
+                        <div className="relative">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="relative"
+                                onClick={() => setNotifOpen(!notifOpen)}
+                            >
+                                <Bell className="w-4 h-4" />
+                                {unreadCount > 0 && (
+                                    <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs">
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </Badge>
+                                )}
+                            </Button>
+                            {notifOpen && (
+                                <NotificationPanel
+                                    notifications={notifications}
+                                    onMarkAllRead={markAllRead}
+                                    onClearAll={clearAll}
+                                    onClose={() => setNotifOpen(false)}
+                                />
+                            )}
+                        </div>
                         <div className="flex items-center gap-2">
                             {user?.user_metadata?.avatar_url ? (
                                 <img
@@ -237,15 +250,9 @@ export function AppLayout() {
                 {/* Sidebar */}
                 <aside
                     className={`
-          fixed lg:sticky top-16 left-0 h-[calc(100vh-4rem)] w-64 border-r transition-transform duration-200 z-40
+          fixed lg:sticky top-16 left-0 h-[calc(100vh-4rem)] w-64 border-r bg-background transition-transform duration-200 z-40
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
-                    style={{
-                        background: 'var(--glass-bg)',
-                        borderColor: 'var(--glass-border)',
-                        backdropFilter: `blur(var(--glass-blur))`,
-                        WebkitBackdropFilter: `blur(var(--glass-blur))`,
-                    }}
                 >
                     {/* Main Nav */}
                     <nav className="p-4 space-y-2">

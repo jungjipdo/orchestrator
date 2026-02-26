@@ -50,5 +50,8 @@ jobs:
           releaseBody: |
             Desktop app release for Orchestrator v__VERSION__.
             Download the .dmg file below to install on macOS.
+
+            > First launch: Right-click → Open, or run `xattr -cr /Applications/Orchestrator.app`
           releaseDraft: true
           prerelease: false
+          args: --bundles dmg

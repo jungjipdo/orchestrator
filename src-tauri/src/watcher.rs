@@ -120,13 +120,11 @@ pub fn start_watcher(
             }
         };
 
-        // 원시 이벤트 로그 (모든 이벤트 확인용)
-        log::info!("🔵 RAW 이벤트: {:?} → {:?}", event.kind, event.paths);
+
 
         let event_type = match event_kind_to_str(&event.kind) {
             Some(t) => t,
             None => {
-                log::info!("🟡 무시된 이벤트 종류: {:?}", event.kind);
                 return;
             }
         };
@@ -188,10 +186,10 @@ pub fn start_watcher(
                 violation: violation_msg,
             };
 
-            log::info!("📝 파일변경 감지: {} ({})", change_event.path, change_event.event_type);
+            log::debug!("📝 파일변경: {} ({})", change_event.path, change_event.event_type);
 
             match app.emit("orchx:file-change", &change_event) {
-                Ok(_) => log::info!("  ✅ Tauri emit 성공: orchx:file-change"),
+                Ok(_) => {}
                 Err(e) => log::warn!("  ❌ Tauri emit 실패: {}", e),
             }
 
@@ -200,16 +198,14 @@ pub fn start_watcher(
                 let client = client.clone();
                 let rel = change_event.path.clone();
                 let viol = change_event.violation.clone();
-                log::info!("  📤 Supabase 전송 시도: {}", rel);
                 tauri::async_runtime::spawn(async move {
                     let payload = serde_json::json!({
                         "file": rel,
                         "event_type": "change",
                         "violation": viol,
                     });
-                    match client.send_event("file.changed", payload).await {
-                        Ok(_) => log::info!("  ✅ Supabase 전송 성공"),
-                        Err(e) => log::warn!("  ❌ Supabase 전송 실패: {}", e),
+                    if let Err(e) = client.send_event("file.changed", payload).await {
+                        log::warn!("  ❌ Supabase 전송 실패: {}", e);
                     }
                 });
             } else {

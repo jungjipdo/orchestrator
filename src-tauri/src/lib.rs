@@ -277,7 +277,7 @@ async fn resolve_local_paths(repo_urls: Vec<String>) -> Result<serde_json::Value
         all_git_dirs.push(home_git.to_string_lossy().to_string());
     }
 
-    log::info!("🔍 총 {}개 git 저장소 발견", all_git_dirs.len());
+    log::debug!("🔍 총 {}개 git 저장소 발견", all_git_dirs.len());
 
     // ─── URL 정규화 ───
     let normalized_urls: Vec<(String, String, String)> = repo_urls
@@ -436,7 +436,6 @@ async fn db_delete_project(
         log::error!("❌ 프로젝트 삭제 실패: {} - {}", id, e);
         e.to_string()
     })?;
-    log::info!("✅ 프로젝트 삭제 완료: {}", id);
     Ok("ok".to_string())
 }
 
@@ -528,7 +527,7 @@ pub fn run() {
             } else {
                 // .env.local / .env 파일 탐색
                 let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-                log::info!("🔍 SyncClient .env 탐색 CWD: {:?}", cwd);
+
                 
                 // CWD에서 먼저 찾고, 없으면 exe 디렉토리에서 찾기
                 let result = sync_client::load_supabase_config(&cwd)
@@ -539,7 +538,7 @@ pub fn run() {
                                 .and_then(|p| p.parent())
                                 .and_then(|p| p.parent())
                                 .and_then(|p| p.parent()) {
-                                log::info!("🔍 SyncClient .env fallback: {:?}", project_root);
+
                                 return sync_client::load_supabase_config(project_root);
                             }
                         }
@@ -617,7 +616,7 @@ pub fn run() {
                                 if let Ok(mut watchers) = state.watchers.lock() {
                                     for (name, w) in watchers.iter() {
                                         watcher::stop_watcher(w);
-                                        log::info!("⏸ {} 감시 중지", name);
+
                                     }
                                     watchers.clear();
                                 }
@@ -632,7 +631,7 @@ pub fn run() {
                                             match watcher::start_watcher(path.clone(), app.clone(), sc) {
                                                 Ok(ws) => {
                                                     watchers.insert(name.clone(), ws);
-                                                    log::info!("👁 {} 감시 시작", name);
+
                                                 }
                                                 Err(e) => log::error!("❌ {} 감시 실패: {}", name, e),
                                             }

@@ -79,13 +79,13 @@ export function useCliEvents(options?: {
     useEffect(() => {
         if (!isTauri()) return
 
-        console.log('[useCliEvents] Tauri orchx:file-change 리스너 등록 시작')
+
         let unlisten: (() => void) | null = null
 
         import('@tauri-apps/api/event').then(({ listen }) => {
             listen<{ path: string; event_type: string; violation: string | null }>('orchx:file-change', (event) => {
                 const p = event.payload
-                console.log('[useCliEvents] 📝 Tauri 이벤트 수신:', p.path, p.event_type)
+
                 // CliEventRow 형식으로 변환하여 로컬 이벤트 목록에 추가
                 const localEvent: CliEventRow = {
                     id: crypto.randomUUID(),
@@ -103,7 +103,7 @@ export function useCliEvents(options?: {
                 setEvents(prev => [localEvent, ...prev].slice(0, limit))
             }).then(fn => {
                 unlisten = fn
-                console.log('[useCliEvents] ✅ Tauri 리스너 등록 완료')
+
             })
         }).catch(err => {
             console.error('[useCliEvents] ❌ Tauri 리스너 등록 실패:', err)

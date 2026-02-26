@@ -86,8 +86,8 @@ export function CliMonitorPanel() {
     const { events, loading, error, refresh } = useCliEvents({ limit: 50 })
     const [filter, setFilter] = useState<string | null>(null)
 
-    // 디버그: 이벤트 목록 변화 추적
-    console.log('[CliMonitorPanel] events:', events.length, events.slice(0, 2).map(e => `${e.event_type}:${(e.payload as Record<string, unknown>)?.file ?? (e.payload as Record<string, unknown>)?.path}`))
+
+
 
     const filteredEvents = filter
         ? events.filter(e => e.event_type === filter)

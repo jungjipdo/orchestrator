@@ -83,7 +83,7 @@ export async function syncGitHubWithToken(providerToken: string): Promise<GitHub
         if (res.ok) {
             const user = await res.json() as { login?: string }
             username = user.login ?? null
-            console.log('[syncGitHub] GitHub username:', username)
+
         } else {
             console.error('[syncGitHub] GitHub /user API 실패:', res.status)
         }
@@ -111,7 +111,7 @@ export async function syncGitHubWithToken(providerToken: string): Promise<GitHub
         console.error('[syncGitHub] DB upsert 실패:', error)
         return null
     }
-    console.log('[syncGitHub] 연결 저장 성공:', data)
+
     return data as GitHubConnection
 }
 

@@ -80,9 +80,9 @@ export function useGitHub(): UseGitHubReturn {
     // ─── OAuth 후 provider_token → github_connections 동기화 ───
     const syncGitHub = useCallback(async (providerToken: string) => {
         try {
-            console.log('[GitHub] provider_token으로 sync 시작')
-            const result = await syncGitHubWithToken(providerToken)
-            console.log('[GitHub] sync 결과:', result ? '성공' : '실패')
+
+            await syncGitHubWithToken(providerToken)
+
         } catch (e) {
             console.error('[GitHub] sync 실패:', e)
         }
@@ -94,7 +94,7 @@ export function useGitHub(): UseGitHubReturn {
     //         useEffect보다 먼저 실행되므로, 여기서 provider_token을 잡아야 함.
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            console.log('[GitHub] onAuthStateChange:', event, 'provider_token:', session?.provider_token ? '있음' : '없음')
+
             if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.provider_token) {
                 // GitHub OAuth 직후 → provider_token으로 sync
                 void syncGitHub(session.provider_token).then(() => {

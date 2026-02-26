@@ -228,27 +228,19 @@ export function ReleasePlanView() {
     // ─── 삭제 관리 핸들러 ───
     const handleBulkDelete = useCallback(async () => {
         const targets = Array.from(deleteTargets)
-        console.log('[ReleasePlan] handleBulkDelete 시작, 대상:', targets)
         for (const id of targets) {
-            // 플랜인지 프로젝트인지 판별
             const matchedPlan = plans.find(p => p.id === id)
             const matchedProject = projects.find(p => p.id === id)
-            console.log(`[ReleasePlan] id=${id} → plan=${!!matchedPlan}, project=${!!matchedProject}`)
             if (matchedPlan) {
-                console.log('[ReleasePlan] deletePlan 호출:', id)
                 await deletePlan(id)
-                console.log('[ReleasePlan] deletePlan 완료:', id)
             } else if (matchedProject) {
-                console.log('[ReleasePlan] removeProject 호출:', id)
                 await removeProject(id)
-                console.log('[ReleasePlan] removeProject 완료:', id)
             } else {
                 console.warn('[ReleasePlan] 매칭 안 됨:', id)
             }
         }
         setDeleteTargets(new Set())
         setDeleteMode(false)
-        console.log('[ReleasePlan] handleBulkDelete 완료')
     }, [deleteTargets, plans, projects, deletePlan, removeProject])
 
     // ─── Section Order Drag (removed ─ now via button) ───

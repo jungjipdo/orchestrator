@@ -71,6 +71,6 @@ jobs:
             Download the .dmg file below to install on macOS.
 
             > First launch: Right-click → Open, or run `xattr -cr /Applications/Orchestrator.app`
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: --bundles dmg

@@ -7,6 +7,8 @@ import { useCallback, useState, useEffect, useRef } from 'react'
 import { useSessionLog } from '../../hooks/useSessionLog'
 import { useTheme } from '../../hooks/useTheme'
 import { useAuth } from '../../hooks/useAuth'
+import { useWatcher } from '../../hooks/useWatcher'
+import { useGitHub } from '../../hooks/useGitHub'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import {
@@ -60,6 +62,9 @@ export function AppLayout() {
     const { notifications, unreadCount, markAllRead, clearAll } = useNotifications()
     const [notifOpen, setNotifOpen] = useState(false)
     const { updateAvailable, updateInfo, downloading, installUpdate } = useUpdater()
+    const { isTauriApp, autoScanAndWatch } = useWatcher()
+    const { repos } = useGitHub()
+    const autoScannedRef = useRef(false)
 
     const refresh = useCallback(() => {
         setRefreshTrigger((v) => v + 1)
@@ -71,6 +76,19 @@ export function AppLayout() {
         const cleanup = startSyncInterval()
         return cleanup
     }, [])
+
+    // 앱 실행 시 자동 스캔 (Tauri + 로그인 + repos 로드 완료 시 1회)
+    useEffect(() => {
+        if (!isTauriApp || !user || repos.length === 0 || autoScannedRef.current) return
+        autoScannedRef.current = true
+
+        const repoUrls = repos.map(r => r.html_url)
+        void autoScanAndWatch(repoUrls).then((count) => {
+            if (count > 0) {
+                console.log(`[AutoScan] ${count}개 프로젝트 감시 시작`)
+            }
+        })
+    }, [isTauriApp, user, repos, autoScanAndWatch])
 
     // ─── 메인 네비게이션 (Settings 제외) ───
     const navigationItems: NavItem[] = [

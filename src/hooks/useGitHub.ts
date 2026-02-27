@@ -139,11 +139,11 @@ export function useGitHub(): UseGitHubReturn {
                 await openInExternalBrowser(data.url)
             }
         } else {
-            // PWA: 기존 리디렉트 방식
+            // PWA: 기존 리디렉트 방식 — /app으로 이동
             void supabase.auth.signInWithOAuth({
                 provider: 'github',
                 options: {
-                    redirectTo: origin,
+                    redirectTo: `${origin}/app`,
                     scopes: scopes ?? 'repo,read:user',
                 },
             })

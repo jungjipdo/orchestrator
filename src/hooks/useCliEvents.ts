@@ -33,6 +33,8 @@ export function useCliEvents(options?: {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const channelRef = useRef<RealtimeChannel | null>(null)
+    // 로컬 Tauri 이벤트를 별도 보관 (새로고침 시 유실 방지)
+    const localEventsRef = useRef<CliEventRow[]>([])
 
     const eventType = options?.eventType
     const limit = options?.limit ?? 50
@@ -42,8 +44,14 @@ export function useCliEvents(options?: {
         try {
             setLoading(true)
             setError(null)
-            const data = await getCliEvents({ eventType, limit })
-            setEvents(data)
+            const supabaseData = await getCliEvents({ eventType, limit })
+            // Supabase 데이터 + 로컬 Tauri 이벤트 병합 (중복 제거, 시간순 정렬)
+            const supabaseIds = new Set(supabaseData.map(e => e.id))
+            const uniqueLocal = localEventsRef.current.filter(e => !supabaseIds.has(e.id))
+            const merged = [...uniqueLocal, ...supabaseData]
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                .slice(0, limit)
+            setEvents(merged)
         } catch (err) {
             setError(err instanceof Error ? err.message : 'CLI 이벤트 로딩 실패')
         } finally {
@@ -100,6 +108,8 @@ export function useCliEvents(options?: {
                     processed_at: new Date().toISOString(),
                 }
                 if (eventType && localEvent.event_type !== eventType) return
+                // 로컬 이벤트 ref에 보관
+                localEventsRef.current = [localEvent, ...localEventsRef.current].slice(0, limit)
                 setEvents(prev => [localEvent, ...prev].slice(0, limit))
             }).then(fn => {
                 unlisten = fn
@@ -114,3 +124,4 @@ export function useCliEvents(options?: {
 
     return { events, loading, error, refresh }
 }
+

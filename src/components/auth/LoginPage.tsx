@@ -5,8 +5,13 @@
 
 import { useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
-import { Zap, Github, Loader2 } from 'lucide-react'
+import { Zap, Github, Loader2, ExternalLink } from 'lucide-react'
 import { Button } from '../ui/button'
+
+/** Tauri 환경 감지 */
+function isTauri(): boolean {
+    return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+}
 
 export function LoginPage() {
     const { signInWithGitHub } = useAuth()
@@ -23,7 +28,7 @@ export function LoginPage() {
 
     return (
         <div
-            className="min-h-screen flex items-center justify-center px-4"
+            className="min-h-screen flex items-center justify-center px-4 relative"
             style={{ background: 'var(--body-gradient)' }}
         >
             <div
@@ -67,6 +72,31 @@ export function LoginPage() {
                     GitHub 계정으로 안전하게 로그인합니다
                 </p>
             </div>
+
+            {/* Tauri 전용: 브라우저 인증 대기 오버레이 */}
+            {isLoading && isTauri() && (
+                <div
+                    className="absolute inset-0 flex items-center justify-center z-50"
+                    style={{
+                        background: 'rgba(0, 0, 0, 0.6)',
+                        backdropFilter: 'blur(8px)',
+                        WebkitBackdropFilter: 'blur(8px)',
+                    }}
+                >
+                    <div className="text-center text-white space-y-4">
+                        <ExternalLink className="w-10 h-10 mx-auto animate-pulse" />
+                        <p className="text-lg font-semibold">브라우저에서 인증 중...</p>
+                        <p className="text-sm opacity-70">GitHub 로그인을 완료하면 자동으로 돌아옵니다</p>
+                        <button
+                            type="button"
+                            onClick={() => setIsLoading(false)}
+                            className="mt-4 text-xs opacity-50 hover:opacity-100 underline cursor-pointer"
+                        >
+                            취소
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

@@ -116,7 +116,7 @@ export function ReleasePlanView() {
     const { deadlines } = useProjectDeadlines({ upcomingDays: 30 })
     const { plans, loading: plansLoading, deletePlan, updatePlan } = usePlans()
     const { projects, loading: projectsLoading, removeProject, updateProjectStatus } = useProjects()
-    const { connection } = useGitHub()
+    const { connection, connect } = useGitHub()
     const githubToken = connection?.access_token ?? null
 
     const loading = itemsLoading || plansLoading || projectsLoading
@@ -1180,6 +1180,7 @@ export function ReleasePlanView() {
                                     <ProjectGitHubPanel
                                         repoFullName={overlayProject.repo_full_name}
                                         token={githubToken}
+                                        onReAuth={connect}
                                     />
                                 </div>
                             </div>

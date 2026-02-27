@@ -1,4 +1,4 @@
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
@@ -34,18 +34,22 @@ pub async fn start_callback_server(
 
             // GET /auth/callback?code=XXXX HTTP/1.1 에서 code 추출
             if let Some(code) = extract_code(&request) {
-                // 성공 HTML 응답
+                // 성공 HTML 응답 — 인증 완료 후 브라우저 탭 자동 닫기
                 let html = r#"<!DOCTYPE html><html><head><meta charset="utf-8"><style>
                     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f8f9fa}
                     .card{background:white;padding:48px 56px;border-radius:20px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.08);max-width:380px}
                     .logo{width:48px;height:48px;background:#1a1a1a;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;color:white;font-size:20px}
                     h1{font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a1a}
                     p{color:#6b7280;font-size:14px;margin:0;line-height:1.5}
+                    .closing{color:#10b981;font-weight:600}
                 </style></head><body><div class="card">
                     <div class="logo">O</div>
-                    <h1>인증 완료</h1>
-                    <p>Orchestrator 앱으로 돌아가주세요.<br>이 창은 닫으셔도 됩니다.</p>
-                </div></body></html>"#;
+                    <h1>✅ 인증 완료</h1>
+                    <p class="closing">이 창은 자동으로 닫힙니다...</p>
+                    <p style="margin-top:12px">자동으로 닫히지 않으면 이 탭을 직접 닫아주세요.</p>
+                </div>
+                <script>setTimeout(function(){window.close()},1500)</script>
+                </body></html>"#;
 
                 let response = format!(
                     "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -54,6 +58,11 @@ pub async fn start_callback_server(
                 );
                 let _ = stream.write_all(response.as_bytes()).await;
                 let _ = stream.flush().await;
+
+                // Tauri 메인 윈도우 포커스 (앱으로 자동 전환)
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.set_focus();
+                }
 
                 // 프론트엔드에 code 전달
                 let _ = app_handle.emit("oauth-callback", code);

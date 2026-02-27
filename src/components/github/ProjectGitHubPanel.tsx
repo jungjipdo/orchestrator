@@ -17,11 +17,14 @@ import {
     User,
     ExternalLink,
     Loader2,
+    ShieldAlert,
 } from 'lucide-react'
 
 interface Props {
     repoFullName: string
     token: string | null
+    /** 권한 갱신(OAuth 재인증) 콜백 */
+    onReAuth?: () => void
 }
 
 /** 커밋 메시지에서 첫 줄(제목)만 추출 */
@@ -56,7 +59,7 @@ function relativeTime(dateStr: string): string {
     return new Date(dateStr).toLocaleDateString('ko-KR')
 }
 
-export function ProjectGitHubPanel({ repoFullName, token }: Props) {
+export function ProjectGitHubPanel({ repoFullName, token, onReAuth }: Props) {
     const {
         issues,
         prs,
@@ -92,18 +95,51 @@ export function ProjectGitHubPanel({ repoFullName, token }: Props) {
         return Array.from(groups.entries())
     }, [commits])
 
+    // 404 에러 감지 — 권한 부족
+    const is404 = error?.includes('404')
+
     if (error) {
         return (
             <div className="mt-3 pt-3 border-t border-border/50 p-4 text-center text-sm text-destructive">
-                <AlertCircle className="w-5 h-5 mx-auto mb-2" />
-                <p>{error}</p>
-                <button
-                    type="button"
-                    onClick={() => void refresh()}
-                    className="mt-2 text-xs text-primary hover:underline cursor-pointer"
-                >
-                    다시 시도
-                </button>
+                {is404 ? (
+                    <>
+                        <ShieldAlert className="w-5 h-5 mx-auto mb-2" />
+                        <p className="font-medium">레포지토리 접근 권한이 없습니다</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            GitHub App에서 이 레포에 대한 권한을 추가해주세요.
+                        </p>
+                        <div className="flex items-center justify-center gap-2 mt-3">
+                            {onReAuth && (
+                                <button
+                                    type="button"
+                                    onClick={onReAuth}
+                                    className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors cursor-pointer"
+                                >
+                                    🔑 권한 갱신
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => void refresh()}
+                                className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md hover:bg-muted transition-colors cursor-pointer"
+                            >
+                                다시 시도
+                            </button>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <AlertCircle className="w-5 h-5 mx-auto mb-2" />
+                        <p>{error}</p>
+                        <button
+                            type="button"
+                            onClick={() => void refresh()}
+                            className="mt-2 text-xs text-primary hover:underline cursor-pointer"
+                        >
+                            다시 시도
+                        </button>
+                    </>
+                )}
             </div>
         )
     }

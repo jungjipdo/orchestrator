@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
-// Tauri 빌드 시 TAURI_ENV_PLATFORM 환경변수가 설정됨
+// Tauri 빌드 시 TAURI_ENV_PLATFORM 환경변수가 설정됨.
 const isTauri = !!process.env.TAURI_ENV_PLATFORM
 
 // https://vite.dev/config/

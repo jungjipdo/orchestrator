@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Orchestrator",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "identifier": "com.jungjipdo.orchestrator",
   "build": {
     "frontendDist": "../dist",
@@ -27,9 +27,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "dmg"
-    ],
+    "targets": "all",
     "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",

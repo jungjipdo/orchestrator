@@ -73,4 +73,4 @@ jobs:
             > First launch: Right-click → Open, or run `xattr -cr /Applications/Orchestrator.app`
           releaseDraft: false
           prerelease: false
-          args: --bundles dmg
+          args: ''
